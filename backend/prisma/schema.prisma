@@ -1,0 +1,338 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ===================== ENUMS =====================
+
+enum Role {
+  SUPER_ADMIN
+  SUPERVISEUR
+  TECHNICIEN
+}
+
+enum TypeMaintenance {
+  PREVENTIVE
+  CORRECTIVE
+  MIXTE
+}
+
+enum StatutMarche {
+  BROUILLON
+  ACTIF
+  EXPIRE
+  RESILIE
+}
+
+enum CategorieEquipement {
+  ELECTRIQUE
+  MECANIQUE
+  CVC
+  INCENDIE
+  BALISAGE
+  PASSERELLE
+  ASCENSEUR
+  AUTRE
+}
+
+enum Criticite {
+  CRITIQUE
+  IMPORTANT
+  STANDARD
+}
+
+enum StatutEquipement {
+  EN_SERVICE
+  EN_PANNE
+  HORS_SERVICE
+  EN_MAINTENANCE
+}
+
+enum StatutValidation {
+  EN_ATTENTE
+  VALIDE
+  REJETE
+}
+
+enum CausePanne {
+  USURE
+  DEFAUT_ELECTRIQUE
+  DEFAUT_MECANIQUE
+  FACTEUR_EXTERNE
+  INCONNU
+}
+
+enum ImpactPanne {
+  CRITIQUE
+  MAJEUR
+  MINEUR
+}
+
+enum StatutPanne {
+  OUVERTE
+  EN_COURS
+  RESOLUE
+}
+
+enum MoyenNotification {
+  APPEL
+  EMAIL
+  SMS
+  APPLICATION
+}
+
+// ===================== MODELES =====================
+
+model Airport {
+  id        String   @id @default(uuid())
+  codeIata  String   @unique @map("code_iata") @db.VarChar(3)
+  codeOaci  String   @unique @map("code_oaci") @db.VarChar(4)
+  nom       String   @db.VarChar(255)
+  ville     String   @db.VarChar(100)
+  region    String?  @db.VarChar(100)
+  statut    String   @default("ACTIF") @db.VarChar(20)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  users         User[]
+  marches       Marche[]
+  societes      Societe[]
+  equipements   Equipement[]
+  preventifs    InterventionPreventive[]
+  pannes        Panne[]
+  reclamations  Reclamation[]
+  auditLogs     AuditLog[]
+  rapports      RapportGenere[]
+
+  @@map("airports")
+}
+
+model User {
+  id           String    @id @default(uuid())
+  email        String    @unique @db.VarChar(255)
+  passwordHash String    @map("password_hash") @db.VarChar(255)
+  nom          String    @db.VarChar(100)
+  prenom       String    @db.VarChar(100)
+  role         Role
+  airportId    String?   @map("airport_id")
+  isActive     Boolean   @default(true) @map("is_active")
+  lastLogin    DateTime? @map("last_login")
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  airport Airport? @relation(fields: [airportId], references: [id])
+
+  refreshTokens        RefreshToken[]
+  preventifsSaisis     InterventionPreventive[] @relation("PreventifSaisiPar")
+  preventifsValides    InterventionPreventive[] @relation("PreventifValidePar")
+  pannesSaisies        Panne[]                  @relation("PanneSaisiPar")
+  reclamationsSaisies  Reclamation[]            @relation("ReclamationSaisiPar")
+  auditLogs            AuditLog[]
+  rapportsGeneres      RapportGenere[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  tokenHash String   @map("token_hash") @db.VarChar(255)
+  expiresAt DateTime @map("expires_at")
+  revoked   Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("refresh_tokens")
+}
+
+model Marche {
+  id                      String          @id @default(uuid())
+  airportId               String          @map("airport_id")
+  numeroMarche            String          @map("numero_marche") @db.VarChar(50)
+  objet                   String
+  typeMaintenance         TypeMaintenance @map("type_maintenance")
+  slaDisponibilite        Decimal         @map("sla_disponibilite") @db.Decimal(5, 2)
+  slaPrr                  Decimal         @map("sla_prr") @db.Decimal(5, 2)
+  slaMrt                  Int             @map("sla_mrt")
+  dateDebut               DateTime        @map("date_debut") @db.Date
+  dateFin                 DateTime        @map("date_fin") @db.Date
+  montantTotal            Decimal?        @map("montant_total") @db.Decimal(15, 2)
+  penaliteParInfraction   Decimal?        @map("penalite_par_infraction") @db.Decimal(10, 2)
+  statut                  StatutMarche    @default(BROUILLON)
+  createdAt               DateTime        @default(now()) @map("created_at")
+  updatedAt               DateTime        @updatedAt @map("updated_at")
+
+  airport      Airport         @relation(fields: [airportId], references: [id])
+  societes     Societe[]
+  equipements  Equipement[]
+  rapports     RapportGenere[]
+
+  @@unique([airportId, numeroMarche])
+  @@index([airportId])
+  @@map("marches")
+}
+
+model Societe {
+  id                  String   @id @default(uuid())
+  airportId           String   @map("airport_id")
+  marcheId            String   @map("marche_id")
+  raisonSociale       String   @map("raison_sociale") @db.VarChar(255)
+  rcNumber            String   @map("rc_number") @db.VarChar(50)
+  ice                 String   @db.VarChar(15)
+  adresse             String
+  telephone           String   @db.VarChar(20)
+  emailContact        String   @map("email_contact") @db.VarChar(255)
+  emailNotification   String   @map("email_notification") @db.VarChar(255)
+  contactUrgenceNom   String   @map("contact_urgence_nom") @db.VarChar(100)
+  contactUrgenceTel   String   @map("contact_urgence_tel") @db.VarChar(20)
+  createdAt           DateTime @default(now()) @map("created_at")
+
+  airport     Airport         @relation(fields: [airportId], references: [id])
+  marche      Marche          @relation(fields: [marcheId], references: [id])
+  equipements Equipement[]
+  rapports    RapportGenere[]
+
+  @@index([airportId])
+  @@map("societes")
+}
+
+model Equipement {
+  id                       String              @id @default(uuid())
+  airportId                String              @map("airport_id")
+  marcheId                 String              @map("marche_id")
+  societeId                String              @map("societe_id")
+  codeEquipement            String              @map("code_equipement") @db.VarChar(50)
+  designation               String              @db.VarChar(255)
+  categorie                 CategorieEquipement
+  localisation               String              @db.VarChar(255)
+  criticite                  Criticite           @default(STANDARD)
+  dateMiseEnService          DateTime?           @map("date_mise_en_service") @db.Date
+  heuresFonctionnementJour   Decimal             @default(24) @map("heures_fonctionnement_jour") @db.Decimal(4, 1)
+  statut                     StatutEquipement    @default(EN_SERVICE)
+  createdAt                  DateTime            @default(now()) @map("created_at")
+
+  airport  Airport @relation(fields: [airportId], references: [id])
+  marche   Marche  @relation(fields: [marcheId], references: [id])
+  societe  Societe @relation(fields: [societeId], references: [id])
+
+  preventifs   InterventionPreventive[]
+  pannes       Panne[]
+
+  @@unique([airportId, codeEquipement])
+  @@index([airportId])
+  @@index([societeId])
+  @@map("equipements")
+}
+
+model InterventionPreventive {
+  id                        String            @id @default(uuid())
+  airportId                 String            @map("airport_id")
+  equipementId               String            @map("equipement_id")
+  mois                       DateTime          @db.Date
+  nbInterventionsPlanifiees  Int               @map("nb_interventions_planifiees")
+  nbInterventionsRealisees   Int               @map("nb_interventions_realisees")
+  observations                String?
+  saisiParId                  String?           @map("saisi_par")
+  valideParId                 String?           @map("valide_par")
+  statutValidation             StatutValidation  @default(EN_ATTENTE) @map("statut_validation")
+  createdAt                    DateTime          @default(now()) @map("created_at")
+
+  airport     Airport     @relation(fields: [airportId], references: [id])
+  equipement  Equipement  @relation(fields: [equipementId], references: [id])
+  saisiPar    User?       @relation("PreventifSaisiPar", fields: [saisiParId], references: [id])
+  validePar   User?       @relation("PreventifValidePar", fields: [valideParId], references: [id])
+
+  @@unique([airportId, equipementId, mois])
+  @@index([airportId, mois])
+  @@map("interventions_preventives")
+}
+
+model Panne {
+  id                  String       @id @default(uuid())
+  airportId           String       @map("airport_id")
+  equipementId         String       @map("equipement_id")
+  tPanne                DateTime     @map("t_panne")
+  tReprise              DateTime?    @map("t_reprise")
+  dureeArretMinutes     Int?         @map("duree_arret_minutes") // calculé côté service (Étape 10)
+  causePanne            CausePanne   @map("cause_panne")
+  description            String
+  actionsCorrectives     String?      @map("actions_correctives")
+  impact                 ImpactPanne
+  statut                 StatutPanne  @default(OUVERTE)
+  saisiParId             String?      @map("saisi_par")
+  createdAt               DateTime     @default(now()) @map("created_at")
+
+  airport     Airport       @relation(fields: [airportId], references: [id])
+  equipement  Equipement    @relation(fields: [equipementId], references: [id])
+  saisiPar    User?         @relation("PanneSaisiPar", fields: [saisiParId], references: [id])
+  reclamations Reclamation[]
+
+  @@index([airportId, tPanne])
+  @@index([equipementId])
+  @@map("pannes")
+}
+
+model Reclamation {
+  id                       String            @id @default(uuid())
+  airportId                String            @map("airport_id")
+  panneId                   String            @map("panne_id")
+  tNotification              DateTime          @map("t_notification")
+  moyenNotification          MoyenNotification @map("moyen_notification")
+  tArrivee                    DateTime?         @map("t_arrivee")
+  tempsReactionMinutes         Int?              @map("temps_reaction_minutes") // calculé côté service
+  conformeSla                  Boolean?          @map("conforme_sla")
+  commentaire                   String?
+  saisiParId                    String?           @map("saisi_par")
+  createdAt                      DateTime          @default(now()) @map("created_at")
+
+  airport   Airport @relation(fields: [airportId], references: [id])
+  panne     Panne   @relation(fields: [panneId], references: [id])
+  saisiPar  User?   @relation("ReclamationSaisiPar", fields: [saisiParId], references: [id])
+
+  @@index([panneId])
+  @@map("reclamations")
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String?  @map("user_id")
+  airportId  String?  @map("airport_id")
+  action     String   @db.VarChar(50)
+  tableName  String   @map("table_name") @db.VarChar(50)
+  recordId   String?  @map("record_id")
+  oldValues  Json?    @map("old_values")
+  newValues  Json?    @map("new_values")
+  ipAddress  String?  @map("ip_address") @db.VarChar(45)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user    User?    @relation(fields: [userId], references: [id])
+  airport Airport? @relation(fields: [airportId], references: [id])
+
+  @@index([userId, createdAt])
+  @@map("audit_logs")
+}
+
+model RapportGenere {
+  id               String   @id @default(uuid())
+  airportId        String   @map("airport_id")
+  typeRapport      String   @map("type_rapport") @db.VarChar(20)
+  periodeDebut     DateTime @map("periode_debut") @db.Date
+  periodeFin       DateTime @map("periode_fin") @db.Date
+  marcheId         String?  @map("marche_id")
+  societeId        String?  @map("societe_id")
+  fichierPdfUrl    String?  @map("fichier_pdf_url") @db.VarChar(500)
+  fichierXlsxUrl   String?  @map("fichier_xlsx_url") @db.VarChar(500)
+  genereParId      String?  @map("genere_par")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  airport  Airport  @relation(fields: [airportId], references: [id])
+  marche   Marche?  @relation(fields: [marcheId], references: [id])
+  societe  Societe? @relation(fields: [societeId], references: [id])
+  genePar  User?    @relation(fields: [genereParId], references: [id])
+
+  @@map("rapports_generes")
+}
