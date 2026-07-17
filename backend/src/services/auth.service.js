@@ -7,7 +7,7 @@ import bcrypt from 'bcryptjs';
 
 export async function login(email, password) {
   const user = await prisma.user.findUnique({ where: { email } });
-  if (!user || !user.isActive) {
+  if (!user || !user.isActive || user.deletedAt) {
     throw new AppError(401, 'Identifiants invalides', 'INVALID_CREDENTIALS');
   }
   const valid = await comparePassword(password, user.passwordHash);
@@ -43,6 +43,14 @@ export async function refresh(oldRefreshToken) {
     throw new AppError(401, 'Refresh token invalide', 'INVALID_REFRESH_TOKEN');
   }
 
+  // Verification de l'etat actuel du compte AVANT toute autre operation.
+  // Un compte desactive ou supprime ne doit jamais pouvoir rafraichir sa session,
+  // meme si le refresh token presente est cryptographiquement valide et non expire.
+  const user = await prisma.user.findUnique({ where: { id: payload.sub } });
+  if (!user || !user.isActive || user.deletedAt) {
+    throw new AppError(401, 'Compte desactive ou introuvable', 'ACCOUNT_DISABLED');
+  }
+
   const storedTokens = await prisma.refreshToken.findMany({
     where: { userId: payload.sub, revoked: false, expiresAt: { gt: new Date() } },
   });
@@ -55,23 +63,10 @@ export async function refresh(oldRefreshToken) {
     }
   }
   if (!matchedToken) {
-    throw new AppError(401, 'Refresh token invalide ou révoqué', 'INVALID_REFRESH_TOKEN');
+    throw new AppError(401, 'Refresh token invalide ou revoque', 'INVALID_REFRESH_TOKEN');
   }
 
-  const user = await prisma.user.findUnique({ where: { id: payload.sub } });
-
-  // CORRECTION Bug Critique 2 : un compte désactivé ou supprimé ne doit PAS
-  // pouvoir obtenir un nouveau access token, même avec un refresh token valide.
-  if (!user || !user.isActive || user.deletedAt !== null) {
-    // On révoque également tous ses tokens pour forcer la déconnexion totale
-    await prisma.refreshToken.updateMany({
-      where: { userId: payload.sub, revoked: false },
-      data: { revoked: true },
-    });
-    throw new AppError(401, 'Compte désactivé ou supprimé', 'ACCOUNT_DISABLED');
-  }
-
-  // Rotation : on révoque l'ancien, on en émet un nouveau
+  // Rotation : on revoque l'ancien, on en emet un nouveau
   await prisma.refreshToken.update({ where: { id: matchedToken.id }, data: { revoked: true } });
 
   const newAccessToken = signAccessToken(user);
