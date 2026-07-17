@@ -8,6 +8,14 @@ for (const key of requiredVars) {
   }
 }
 
+// Sécurité : les secrets JWT doivent faire au minimum 32 caractères
+if (process.env.JWT_ACCESS_SECRET.length < 32) {
+  throw new Error('❌ JWT_ACCESS_SECRET doit avoir au moins 32 caractères');
+}
+if (process.env.JWT_REFRESH_SECRET.length < 32) {
+  throw new Error('❌ JWT_REFRESH_SECRET doit avoir au moins 32 caractères');
+}
+
 export const env = {
   port: process.env.PORT,
   databaseUrl: process.env.DATABASE_URL,

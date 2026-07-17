@@ -1,5 +1,6 @@
 import { prisma } from '../config/prisma.js';
 import { AppError } from '../utils/AppError.js';
+import { paginate } from '../utils/paginate.js';
 
 async function ensureInTenant(model, id, tenantFilter, label) {
   const record = await prisma[model].findFirst({ where: { id, ...tenantFilter } });
@@ -7,12 +8,17 @@ async function ensureInTenant(model, id, tenantFilter, label) {
   return record;
 }
 
-export async function getAll(tenantFilter) {
-  return prisma.equipement.findMany({ where: tenantFilter, orderBy: { createdAt: 'desc' } });
+export async function getAll(tenantFilter, query = {}) {
+  const { page = 1, limit = 10, statut, categorie } = query;
+  const where = { ...tenantFilter, deletedAt: null };
+  if (statut) where.statut = statut;
+  if (categorie) where.categorie = categorie;
+
+  return paginate(prisma.equipement, { where, orderBy: { createdAt: 'desc' } }, page, limit);
 }
 
 export async function getById(id, tenantFilter) {
-  const eq = await prisma.equipement.findFirst({ where: { id, ...tenantFilter } });
+  const eq = await prisma.equipement.findFirst({ where: { id, ...tenantFilter,   deletedAt: null } });
   if (!eq) throw new AppError(404, 'Équipement introuvable', 'NOT_FOUND');
   return eq;
 }
@@ -31,5 +37,8 @@ export async function update(id, data, tenantFilter) {
 
 export async function remove(id, tenantFilter) {
   await getById(id, tenantFilter);
-  return prisma.equipement.delete({ where: { id } });
+  return prisma.equipement.update({
+  where: { id },
+  data: { deletedAt: new Date() }
+});
 }

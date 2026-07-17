@@ -1,5 +1,6 @@
 import { prisma } from '../config/prisma.js';
 import { AppError } from '../utils/AppError.js';
+import { paginate } from '../utils/paginate.js';
 
 function computeTempsReaction(tNotification, tArrivee) {
   if (!tArrivee) return null;
@@ -8,8 +9,15 @@ function computeTempsReaction(tNotification, tArrivee) {
   return Math.round(diffMs / 60000);
 }
 
-export async function getAll(tenantFilter) {
-  return prisma.reclamation.findMany({ where: tenantFilter, orderBy: { createdAt: 'desc' } });
+export async function getAll(tenantFilter, query = {}) {
+  const { page = 1, limit = 10, conformeSla } = query;
+  const where = { ...tenantFilter, deletedAt: null };
+
+  if (conformeSla !== undefined) {
+    where.conformeSla = conformeSla === 'true'; // Conversion du string en boolean
+  }
+
+  return paginate(prisma.reclamation, { where, orderBy: { createdAt: 'desc' } }, page, limit);
 }
 
 export async function create(data, user) {
@@ -34,4 +42,15 @@ export async function create(data, user) {
       saisiParId: user.id,
     },
   });
+}
+
+export async function getById(id, tenantFilter) {
+  const rec = await prisma.reclamation.findFirst({ where: { id, ...tenantFilter, deletedAt: null } });
+  if (!rec) throw new AppError(404, 'Réclamation introuvable', 'NOT_FOUND');
+  return rec;
+}
+
+export async function remove(id, tenantFilter) {
+  await getById(id, tenantFilter);
+  return prisma.reclamation.update({ where: { id }, data: { deletedAt: new Date() } });
 }

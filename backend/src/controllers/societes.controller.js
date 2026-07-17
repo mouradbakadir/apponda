@@ -2,7 +2,7 @@ import * as societesService from '../services/societes.service.js';
 
 export async function getAllController(req, res, next) {
   try {
-    res.json(await societesService.getAll(req.tenantFilter));
+    res.json(await societesService.getAll(req.tenantFilter, req.query));
   } catch (err) { next(err); }
 }
 

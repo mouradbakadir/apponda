@@ -1,7 +1,9 @@
 import * as service from '../services/preventif.service.js';
 
 export async function getAllController(req, res, next) {
-  try { res.json(await service.getAll(req.tenantFilter)); } catch (err) { next(err); }
+  try {
+    res.json(await service.getAll(req.tenantFilter, req.query));
+  } catch (err) { next(err); }
 }
 
 export async function createController(req, res, next) {
@@ -11,5 +13,18 @@ export async function createController(req, res, next) {
 export async function validateController(req, res, next) {
   try {
     res.json(await service.validate(req.params.id, req.body.valide, req.user.id, req.tenantFilter));
+  } catch (err) { next(err); }
+}
+
+export async function getByIdController(req, res, next) {
+  try {
+    res.json(await service.getById(req.params.id, req.tenantFilter));
+  } catch (err) { next(err); }
+}
+
+export async function removeController(req, res, next) {
+  try {
+    await service.remove(req.params.id, req.tenantFilter);
+    res.status(204).send();
   } catch (err) { next(err); }
 }

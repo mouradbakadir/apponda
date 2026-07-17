@@ -5,6 +5,7 @@ import { authorize } from '../middlewares/authorize.js';
 import { tenantScope } from '../middlewares/tenantScope.js';
 import { validate } from '../middlewares/validate.js';
 import { createMarcheSchema, updateMarcheSchema } from '../validators/marches.validator.js';
+import { auditLog } from '../middlewares/auditLog.js';
 
 const router = Router();
 
@@ -12,8 +13,8 @@ router.use(authenticate, tenantScope); // s'applique à TOUTES les routes ci-des
 
 router.get('/', ctrl.getAllController);
 router.get('/:id', ctrl.getByIdController);
-router.post('/', authorize('SUPER_ADMIN', 'SUPERVISEUR'), validate(createMarcheSchema), ctrl.createController);
-router.patch('/:id', authorize('SUPER_ADMIN', 'SUPERVISEUR'), validate(updateMarcheSchema), ctrl.updateController);
-router.delete('/:id', authorize('SUPER_ADMIN'), ctrl.removeController);
+router.post('/', authorize('SUPER_ADMIN', 'SUPERVISEUR'), validate(createMarcheSchema), auditLog('marches'), ctrl.createController);
+router.patch('/:id', authorize('SUPER_ADMIN', 'SUPERVISEUR'), validate(updateMarcheSchema), auditLog('marches'), ctrl.updateController);
+router.delete('/:id', authorize('SUPER_ADMIN'), auditLog('marches'), ctrl.removeController);
 
 export default router;

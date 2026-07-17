@@ -122,6 +122,7 @@ model User {
   isActive     Boolean   @default(true) @map("is_active")
   lastLogin    DateTime? @map("last_login")
   createdAt    DateTime  @default(now()) @map("created_at")
+  deletedAt    DateTime? @map("deleted_at")
 
   airport Airport? @relation(fields: [airportId], references: [id])
 
@@ -165,6 +166,7 @@ model Marche {
   statut                  StatutMarche    @default(BROUILLON)
   createdAt               DateTime        @default(now()) @map("created_at")
   updatedAt               DateTime        @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
 
   airport      Airport         @relation(fields: [airportId], references: [id])
   societes     Societe[]
@@ -190,6 +192,7 @@ model Societe {
   contactUrgenceNom   String   @map("contact_urgence_nom") @db.VarChar(100)
   contactUrgenceTel   String   @map("contact_urgence_tel") @db.VarChar(20)
   createdAt           DateTime @default(now()) @map("created_at")
+  deletedAt DateTime? @map("deleted_at")
 
   airport     Airport         @relation(fields: [airportId], references: [id])
   marche      Marche          @relation(fields: [marcheId], references: [id])
@@ -214,6 +217,7 @@ model Equipement {
   heuresFonctionnementJour   Decimal             @default(24) @map("heures_fonctionnement_jour") @db.Decimal(4, 1)
   statut                     StatutEquipement    @default(EN_SERVICE)
   createdAt                  DateTime            @default(now()) @map("created_at")
+  deletedAt DateTime? @map("deleted_at")
 
   airport  Airport @relation(fields: [airportId], references: [id])
   marche   Marche  @relation(fields: [marcheId], references: [id])
@@ -240,6 +244,7 @@ model InterventionPreventive {
   valideParId                 String?           @map("valide_par")
   statutValidation             StatutValidation  @default(EN_ATTENTE) @map("statut_validation")
   createdAt                    DateTime          @default(now()) @map("created_at")
+  deletedAt DateTime? @map("deleted_at")
 
   airport     Airport     @relation(fields: [airportId], references: [id])
   equipement  Equipement  @relation(fields: [equipementId], references: [id])
@@ -265,6 +270,7 @@ model Panne {
   statut                 StatutPanne  @default(OUVERTE)
   saisiParId             String?      @map("saisi_par")
   createdAt               DateTime     @default(now()) @map("created_at")
+  deletedAt DateTime? @map("deleted_at")
 
   airport     Airport       @relation(fields: [airportId], references: [id])
   equipement  Equipement    @relation(fields: [equipementId], references: [id])
@@ -288,6 +294,7 @@ model Reclamation {
   commentaire                   String?
   saisiParId                    String?           @map("saisi_par")
   createdAt                      DateTime          @default(now()) @map("created_at")
+  deletedAt DateTime? @map("deleted_at")
 
   airport   Airport @relation(fields: [airportId], references: [id])
   panne     Panne   @relation(fields: [panneId], references: [id])

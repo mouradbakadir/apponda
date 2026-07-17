@@ -8,4 +8,4 @@ describe('GET /api/health', () => {
     expect(res.status).toBe(200);
     expect(res.body.status).toBe('OK');
   });
-});
+}); 

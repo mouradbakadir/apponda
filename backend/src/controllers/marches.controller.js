@@ -2,7 +2,8 @@ import * as marchesService from '../services/marches.service.js';
 
 export async function getAllController(req, res, next) {
   try {
-    res.json(await marchesService.getAll(req.tenantFilter));
+    // On passe req.tenantFilter ET req.query au service
+    res.json(await marchesService.getAll(req.tenantFilter, req.query));
   } catch (err) { next(err); }
 }
 

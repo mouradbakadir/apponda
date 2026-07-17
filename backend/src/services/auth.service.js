@@ -60,6 +60,17 @@ export async function refresh(oldRefreshToken) {
 
   const user = await prisma.user.findUnique({ where: { id: payload.sub } });
 
+  // CORRECTION Bug Critique 2 : un compte désactivé ou supprimé ne doit PAS
+  // pouvoir obtenir un nouveau access token, même avec un refresh token valide.
+  if (!user || !user.isActive || user.deletedAt !== null) {
+    // On révoque également tous ses tokens pour forcer la déconnexion totale
+    await prisma.refreshToken.updateMany({
+      where: { userId: payload.sub, revoked: false },
+      data: { revoked: true },
+    });
+    throw new AppError(401, 'Compte désactivé ou supprimé', 'ACCOUNT_DISABLED');
+  }
+
   // Rotation : on révoque l'ancien, on en émet un nouveau
   await prisma.refreshToken.update({ where: { id: matchedToken.id }, data: { revoked: true } });
 

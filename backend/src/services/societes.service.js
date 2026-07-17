@@ -1,5 +1,6 @@
 import { prisma } from '../config/prisma.js';
 import { AppError } from '../utils/AppError.js';
+import { paginate } from '../utils/paginate.js';
 
 async function ensureMarcheInTenant(marcheId, tenantFilter) {
   const marche = await prisma.marche.findFirst({ where: { id: marcheId, ...tenantFilter } });
@@ -7,12 +8,13 @@ async function ensureMarcheInTenant(marcheId, tenantFilter) {
   return marche;
 }
 
-export async function getAll(tenantFilter) {
-  return prisma.societe.findMany({ where: tenantFilter, orderBy: { createdAt: 'desc' } });
+export async function getAll(tenantFilter, query = {}) {
+  const { page = 1, limit = 10 } = query;
+  return paginate(prisma.societe, { where: { ...tenantFilter, deletedAt: null }, orderBy: { createdAt: 'desc' } }, page, limit);
 }
 
 export async function getById(id, tenantFilter) {
-  const societe = await prisma.societe.findFirst({ where: { id, ...tenantFilter } });
+  const societe = await prisma.societe.findFirst({ where: { id, ...tenantFilter, deletedAt: null } });
   if (!societe) throw new AppError(404, 'Société introuvable', 'NOT_FOUND');
   return societe;
 }
@@ -31,5 +33,8 @@ export async function update(id, data, tenantFilter) {
 
 export async function remove(id, tenantFilter) {
   await getById(id, tenantFilter);
-  return prisma.societe.delete({ where: { id } });
+  return prisma.societe.update({
+    where: { id },
+    data: { deletedAt: new Date() }
+  });
 }

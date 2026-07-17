@@ -1,4 +1,5 @@
 import { AppError } from '../utils/AppError.js';
+import { logger } from '../utils/logger.js';
 
 export function errorHandler(err, req, res, next) {
   if (err instanceof AppError) {
@@ -16,6 +17,9 @@ export function errorHandler(err, req, res, next) {
     return res.status(400).json({ error: { message: 'Référence invalide (clé étrangère)', code: 'INVALID_REFERENCE' } });
   }
 
-  console.error('❌ Erreur non gérée :', err);
+  logger.error({ 
+    err, 
+    req: { method: req.method, url: req.url, body: req.body } 
+  }, 'Une erreur non gérée est survenue');
   res.status(500).json({ error: { message: 'Erreur interne du serveur', code: 'INTERNAL_ERROR' } });
 }

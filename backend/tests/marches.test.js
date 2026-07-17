@@ -22,7 +22,8 @@ describe('GET /api/marches', () => {
   it('liste les marches pour un superviseur authentifié (200)', async () => {
     const res = await request(app).get('/api/marches').set('Authorization', `Bearer ${tokenSuperviseur}`);
     expect(res.status).toBe(200);
-    expect(Array.isArray(res.body)).toBe(true);
+    expect(Array.isArray(res.body.data)).toBe(true);
+    expect(res.body.pagination).toBeDefined();
   });
 });
 
