@@ -2,7 +2,9 @@ import { prisma } from '../config/prisma.js';
 import { AppError } from '../utils/AppError.js';
 
 async function getMarcheInTenant(marcheId, tenantFilter) {
-  const marche = await prisma.marche.findFirst({ where: { id: marcheId, ...tenantFilter } });
+  const marche = await prisma.marche.findFirst({
+    where: { id: marcheId, ...tenantFilter, deletedAt: null },
+  });
   if (!marche) throw new AppError(404, 'Marché introuvable', 'NOT_FOUND');
   return marche;
 }
@@ -22,6 +24,7 @@ async function computePRR(equipementIds, dateDebut, dateFin) {
       equipementId: { in: equipementIds },
       mois: { gte: new Date(dateDebut), lte: new Date(dateFin) },
       statutValidation: 'VALIDE',
+      deletedAt: null,
     },
   });
   const totalPlanifiees = interventions.reduce((sum, i) => sum + i.nbInterventionsPlanifiees, 0);
@@ -44,6 +47,7 @@ async function computeDisponibilite(equipements, dateDebut, dateFin) {
         equipementId: equipement.id,
         tPanne: { gte: new Date(dateDebut), lte: new Date(dateFin) },
         dureeArretMinutes: { not: null },
+        deletedAt: null,
       },
     });
     const tempsArretMinutes = pannes.reduce((sum, p) => sum + (p.dureeArretMinutes || 0), 0);
@@ -64,6 +68,7 @@ async function computeMRT(equipementIds, dateDebut, dateFin) {
       panne: { equipementId: { in: equipementIds } },
       tNotification: { gte: new Date(dateDebut), lte: new Date(dateFin) },
       tempsReactionMinutes: { not: null },
+      deletedAt: null,
     },
   });
   if (reclamations.length === 0) return null;
@@ -73,7 +78,9 @@ async function computeMRT(equipementIds, dateDebut, dateFin) {
 
 export async function getKpiSummary(marcheId, dateDebut, dateFin, tenantFilter) {
   const marche = await getMarcheInTenant(marcheId, tenantFilter);
-  const equipements = await prisma.equipement.findMany({ where: { marcheId } });
+  const equipements = await prisma.equipement.findMany({
+    where: { marcheId, deletedAt: null },
+  });
   const equipementIds = equipements.map((e) => e.id);
 
   const [prr, disponibilite, mrt] = await Promise.all([
