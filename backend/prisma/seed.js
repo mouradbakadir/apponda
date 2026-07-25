@@ -28,6 +28,125 @@ async function main() {
       ville: 'Marrakech',
     },
   });
+  const aga = await prisma.airport.upsert({
+    where: { codeIata: 'AGA' },
+    update: { codeOaci: 'GMAD' },
+    create: { codeIata: 'AGA', codeOaci: 'GMAD', nom: 'Agadir-Al Massira', ville: 'Agadir' },
+  });
+  
+  const tng = await prisma.airport.upsert({
+    where: { codeIata: 'TNG' },
+    update: { codeOaci: 'GMTT' },
+    create: { codeIata: 'TNG', codeOaci: 'GMTT', nom: 'Tanger Ibn Battouta', ville: 'Tanger' },
+  });
+  
+  const fez = await prisma.airport.upsert({
+    where: { codeIata: 'FEZ' },
+    update: { codeOaci: 'GMFF' },
+    create: { codeIata: 'FEZ', codeOaci: 'GMFF', nom: 'Fès-Saïss', ville: 'Fès' },
+  });
+  
+  const rba = await prisma.airport.upsert({
+    where: { codeIata: 'RBA' },
+    update: { codeOaci: 'GMME' },
+    create: { codeIata: 'RBA', codeOaci: 'GMME', nom: 'Rabat-Salé', ville: 'Rabat' },
+  });
+  
+  const oud = await prisma.airport.upsert({
+    where: { codeIata: 'OUD' },
+    update: { codeOaci: 'GMFO' },
+    create: { codeIata: 'OUD', codeOaci: 'GMFO', nom: 'Oujda Angads', ville: 'Oujda' },
+  });
+  
+  const ndr = await prisma.airport.upsert({
+    where: { codeIata: 'NDR' },
+    update: { codeOaci: 'GMMW' },
+    create: { codeIata: 'NDR', codeOaci: 'GMMW', nom: 'Nador-Al Aroui', ville: 'Nador' },
+  });
+  
+  const ahu = await prisma.airport.upsert({
+    where: { codeIata: 'AHU' },
+    update: { codeOaci: 'GMTA' },
+    create: { codeIata: 'AHU', codeOaci: 'GMTA', nom: 'Al Hoceima - Cherif Al Idrissi', ville: 'Al Hoceima' },
+  });
+  
+  const ttu = await prisma.airport.upsert({
+    where: { codeIata: 'TTU' },
+    update: { codeOaci: 'GMTN' },
+    create: { codeIata: 'TTU', codeOaci: 'GMTN', nom: 'Tétouan - Sania Ramel', ville: 'Tétouan' },
+  });
+  
+  const gln = await prisma.airport.upsert({
+    where: { codeIata: 'GLN' },
+    update: { codeOaci: 'GMAG' },
+    create: { codeIata: 'GLN', codeOaci: 'GMAG', nom: 'Guelmim', ville: 'Guelmim' },
+  });
+  
+  const vil = await prisma.airport.upsert({
+    where: { codeIata: 'VIL' },
+    update: { codeOaci: 'GMMH' },
+    create: { codeIata: 'VIL', codeOaci: 'GMMH', nom: 'Dakhla', ville: 'Dakhla' },
+  });
+  
+  const eun = await prisma.airport.upsert({
+    where: { codeIata: 'EUN' },
+    update: { codeOaci: 'GMML' },
+    create: { codeIata: 'EUN', codeOaci: 'GMML', nom: 'Laâyoune - Hassan Ier', ville: 'Laâyoune' },
+  });
+  
+  const esu = await prisma.airport.upsert({
+    where: { codeIata: 'ESU' },
+    update: { codeOaci: 'GMMI' },
+    create: { codeIata: 'ESU', codeOaci: 'GMMI', nom: 'Essaouira - Mogador', ville: 'Essaouira' },
+  });
+  
+  const ozz = await prisma.airport.upsert({
+    where: { codeIata: 'OZZ' },
+    update: { codeOaci: 'GMMZ' },
+    create: { codeIata: 'OZZ', codeOaci: 'GMMZ', nom: 'Ouarzazate', ville: 'Ouarzazate' },
+  });
+  
+  const erh = await prisma.airport.upsert({
+    where: { codeIata: 'ERH' },
+    update: { codeOaci: 'GMFK' },
+    create: { codeIata: 'ERH', codeOaci: 'GMFK', nom: 'Errachidia - Moulay Ali Cherif', ville: 'Errachidia' },
+  });
+  
+  const tta = await prisma.airport.upsert({
+    where: { codeIata: 'TTA' },
+    update: { codeOaci: 'GMAT' },
+    create: { codeIata: 'TTA', codeOaci: 'GMAT', nom: 'Tan-Tan - Plage Blanche', ville: 'Tan-Tan' },
+  });
+  
+  const bem = await prisma.airport.upsert({
+    where: { codeIata: 'BEM' },
+    update: { codeOaci: 'GMMD' },
+    create: { codeIata: 'BEM', codeOaci: 'GMMD', nom: 'Béni Mellal', ville: 'Béni Mellal' },
+  });
+  
+  const ozg = await prisma.airport.upsert({
+    where: { codeIata: 'OZG' },
+    update: { codeOaci: 'GMAZ' },
+    create: { codeIata: 'OZG', codeOaci: 'GMAZ', nom: 'Zagora', ville: 'Zagora' },
+  });
+  
+  const uar = await prisma.airport.upsert({
+    where: { codeIata: 'UAR' },
+    update: { codeOaci: 'GMFB' },
+    create: { codeIata: 'UAR', codeOaci: 'GMFB', nom: 'Bouarfa', ville: 'Bouarfa' },
+  });
+  
+  const ifr = await prisma.airport.upsert({
+    where: { codeIata: 'IFR' },
+    update: { codeOaci: 'GMFI' },
+    create: { codeIata: 'IFR', codeOaci: 'GMFI', nom: 'Ifrane', ville: 'Ifrane' },
+  });
+  
+  const ben = await prisma.airport.upsert({
+    where: { codeIata: 'BEN' },
+    update: { codeOaci: 'GMMB' },
+    create: { codeIata: 'BEN', codeOaci: 'GMMB', nom: 'Ben Slimane', ville: 'Ben Slimane' },
+  });
 
   // 2. Utilisateurs de test (mots de passe hashés avec bcrypt)
   const passwordAdmin = await bcrypt.hash('admin123', 10);

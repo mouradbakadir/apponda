@@ -8,6 +8,7 @@ export const createEquipementSchema = z.object({
   categorie: z.enum(['ELECTRIQUE', 'MECANIQUE', 'CVC', 'INCENDIE', 'BALISAGE', 'PASSERELLE', 'ASCENSEUR', 'AUTRE']),
   localisation: z.string().min(1),
   criticite: z.enum(['CRITIQUE', 'IMPORTANT', 'STANDARD']).optional(),
+  statut: z.enum(['EN_SERVICE', 'EN_PANNE', 'HORS_SERVICE', 'EN_MAINTENANCE']).optional(),
   dateMiseEnService: z.string().date().optional(),
   heuresFonctionnementJour: z.number().min(0).max(24).optional(),
 });

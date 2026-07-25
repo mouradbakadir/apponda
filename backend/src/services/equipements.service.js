@@ -25,13 +25,21 @@ export async function getById(id, tenantFilter) {
 
 export async function create(data, user) {
   const tenantFilter = user.role === 'SUPER_ADMIN' ? {} : { airportId: user.airportId };
-  await ensureInTenant('marche', data.marcheId, tenantFilter, 'Marché');
+  // On récupère le marché pour en extraire l'airportId correct (même pour un Super Admin)
+  const marche = await ensureInTenant('marche', data.marcheId, tenantFilter, 'Marché');
   await ensureInTenant('societe', data.societeId, tenantFilter, 'Société');
-  return prisma.equipement.create({ data: { ...data, airportId: user.airportId } });
+  
+  if (data.dateMiseEnService) data.dateMiseEnService = new Date(data.dateMiseEnService);
+  
+  return prisma.equipement.create({ 
+    // CORRECTION: On utilise marche.airportId au lieu de user.airportId
+    data: { ...data, airportId: marche.airportId } 
+  });
 }
 
 export async function update(id, data, tenantFilter) {
   await getById(id, tenantFilter);
+  if (data.dateMiseEnService) data.dateMiseEnService = new Date(data.dateMiseEnService);
   return prisma.equipement.update({ where: { id }, data });
 }
 

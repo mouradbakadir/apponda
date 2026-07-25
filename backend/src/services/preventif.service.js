@@ -12,11 +12,20 @@ export async function getAll(tenantFilter, query = {}) {
 
 export async function create(data, user) {
   try {
+    const tenantFilter = user.role === 'SUPER_ADMIN' ? {} : { airportId: user.airportId };
+    
+    // 1. On cherche l'équipement pour récupérer son airportId
+    const equipement = await prisma.equipement.findFirst({
+      where: { id: data.equipementId, ...tenantFilter, deletedAt: null }
+    });
+    if (!equipement) throw new AppError(400, 'Équipement invalide', 'INVALID_REFERENCE');
+
     return await prisma.interventionPreventive.create({
       data: {
         ...data,
         mois: new Date(data.mois),
-        airportId: user.airportId,
+        // CORRECTION: On utilise l'airportId de l'équipement
+        airportId: equipement.airportId,
         saisiParId: user.id,
       },
     });

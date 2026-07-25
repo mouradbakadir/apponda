@@ -1,9 +1,7 @@
 import * as reclamationsService from '../services/reclamations.service.js';
 
 export async function getAllController(req, res, next) {
-  try {
-    res.json(await reclamationsService.getAll(req.tenantFilter, req.query));
-  } catch (err) { next(err); }
+  try { res.json(await reclamationsService.getAll(req.tenantFilter, req.query)); } catch (err) { next(err); }
 }
 
 export async function createController(req, res, next) {
@@ -14,9 +12,11 @@ export async function createController(req, res, next) {
 }
 
 export async function getByIdController(req, res, next) {
-  try {
-    res.json(await reclamationsService.getById(req.params.id, req.tenantFilter));
-  } catch (err) { next(err); }
+  try { res.json(await reclamationsService.getById(req.params.id, req.tenantFilter)); } catch (err) { next(err); }
+}
+
+export async function updateController(req, res, next) {
+  try { res.json(await reclamationsService.update(req.params.id, req.body, req.tenantFilter)); } catch (err) { next(err); }
 }
 
 export async function removeController(req, res, next) {

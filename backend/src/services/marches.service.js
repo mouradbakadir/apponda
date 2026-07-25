@@ -6,19 +6,16 @@ import { paginate } from '../utils/paginate.js';
 export async function getAll(tenantFilter, query = {}) {
   const { page = 1, limit = 10, statut } = query;
 
-  // On construit les filtres Prisma
   const where = { ...tenantFilter, deletedAt: null };
-  
-  // Exemple de filtre optionnel : chercher par statut si fourni
+
   if (statut) {
     where.statut = statut;
   }
 
-  // Utilisation de l'outil paginate au lieu de findMany
   return paginate(
-    prisma.marche, 
-    { where, orderBy: { createdAt: 'desc' } }, 
-    page, 
+    prisma.marche,
+    { where, orderBy: { createdAt: 'desc' } },
+    page,
     limit
   );
 }
@@ -40,6 +37,13 @@ export async function create(data, user) {
 
 export async function update(id, data, tenantFilter) {
   await getById(id, tenantFilter); // vérifie existence + appartenance au tenant
+
+  // Conversion obligatoire : Prisma exige un objet Date complet (ou une chaîne
+  // ISO-8601 avec heure) pour une colonne @db.Date, jamais une simple chaîne
+  // "YYYY-MM-DD" telle qu'envoyée par le formulaire HTML (input type="date").
+  if (data.dateDebut) data.dateDebut = new Date(data.dateDebut);
+  if (data.dateFin) data.dateFin = new Date(data.dateFin);
+
   return prisma.marche.update({ where: { id }, data });
 }
 

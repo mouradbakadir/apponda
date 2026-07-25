@@ -24,16 +24,26 @@ export async function getById(id, tenantFilter) {
   return user;
 }
 
-export async function create(data) {
+export async function create(data, tenantFilter) {
   const existingUser = await prisma.user.findUnique({ where: { email: data.email } });
   if (existingUser) throw new AppError(409, 'Cet email est deja utilise', 'EMAIL_ALREADY_EXISTS');
 
   const passwordHash = await bcrypt.hash(data.password, 10);
   const { password, ...userData } = data;
 
+  // Si un SUPER_ADMIN a choisi un aeroport precis via le selecteur (tenantFilter
+  // contient alors { airportId: '...' }), on force le nouvel utilisateur a
+  // appartenir a cet aeroport, sauf si un airportId a ete explicitement fourni
+  // dans le formulaire (qui reste prioritaire, ex: creation d'un autre SUPER_ADMIN
+  // sans aeroport).
+  const finalData = { ...userData };
+  if (tenantFilter.airportId && !userData.airportId) {
+    finalData.airportId = tenantFilter.airportId;
+  }
+
   return prisma.user.create({
-    data: { ...userData, passwordHash },
-    select: { id: true, email: true, role: true }
+    data: { ...finalData, passwordHash },
+    select: { id: true, email: true, role: true, airportId: true }
   });
 }
 
@@ -45,9 +55,6 @@ export async function update(id, data, tenantFilter) {
     delete data.password;
   }
 
-  // Si on desactive explicitement le compte, on revoque immediatement
-  // toutes ses sessions actives (refresh tokens), en meme temps que la
-  // mise a jour du compte, de facon atomique.
   const isDeactivating = data.isActive === false;
 
   if (isDeactivating) {
@@ -75,9 +82,6 @@ export async function update(id, data, tenantFilter) {
 export async function remove(id, tenantFilter) {
   await getById(id, tenantFilter);
 
-  // Soft delete + revocation immediate de toutes les sessions actives,
-  // dans une seule transaction atomique : impossible d'avoir un etat
-  // intermediaire ou l'utilisateur est "supprime" mais garde une session valide.
   const [updatedUser] = await prisma.$transaction([
     prisma.user.update({
       where: { id },

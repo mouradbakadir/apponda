@@ -84,7 +84,11 @@ enum MoyenNotification {
   SMS
   APPLICATION
 }
-
+enum StatutReclamation {
+  NOUVELLE
+  EN_COURS
+  RESOLUE
+}
 // ===================== MODELES =====================
 
 model Airport {
@@ -103,10 +107,12 @@ model Airport {
   societes      Societe[]
   equipements   Equipement[]
   preventifs    InterventionPreventive[]
+  visitesPreventifSaisies PreventifVisite[]
   pannes        Panne[]
   reclamations  Reclamation[]
   auditLogs     AuditLog[]
   rapports      RapportGenere[]
+  marcheDocuments MarcheDocument[]
 
   @@map("airports")
 }
@@ -133,7 +139,8 @@ model User {
   reclamationsSaisies  Reclamation[]            @relation("ReclamationSaisiPar")
   auditLogs            AuditLog[]
   rapportsGeneres      RapportGenere[]
-
+  visitesPreventifSaisies PreventifVisite[]
+  documentsUploades MarcheDocument[]
   @@map("users")
 }
 
@@ -172,12 +179,41 @@ model Marche {
   societes     Societe[]
   equipements  Equipement[]
   rapports     RapportGenere[]
+  documents MarcheDocument[]
 
   @@unique([airportId, numeroMarche])
   @@index([airportId])
   @@map("marches")
 }
+enum StatutExtractionDocument {
+  EN_ATTENTE
+  EN_COURS
+  EXTRAIT
+  ECHEC
+}
 
+model MarcheDocument {
+  id             String                    @id @default(uuid())
+  airportId      String                    @map("airport_id")
+  marcheId       String?                   @map("marche_id")
+  fileName       String                    @map("file_name") @db.VarChar(255)
+  originalName   String                    @map("original_name") @db.VarChar(255)
+  mimeType       String                    @map("mime_type") @db.VarChar(100)
+  sizeBytes      Int                       @map("size_bytes")
+  statut         StatutExtractionDocument  @default(EN_ATTENTE)
+  extractedJson  Json?                     @map("extracted_json")
+  confidenceScore Decimal?                 @map("confidence_score") @db.Decimal(5, 2)
+  erreurMessage  String?                   @map("erreur_message")
+  uploadedById   String                    @map("uploaded_by")
+  createdAt      DateTime                  @default(now()) @map("created_at")
+
+  airport    Airport  @relation(fields: [airportId], references: [id])
+  marche     Marche?  @relation(fields: [marcheId], references: [id])
+  uploadedBy User     @relation(fields: [uploadedById], references: [id])
+
+  @@index([airportId])
+  @@map("marche_documents")
+}
 model Societe {
   id                  String   @id @default(uuid())
   airportId           String   @map("airport_id")
@@ -197,10 +233,27 @@ model Societe {
   airport     Airport         @relation(fields: [airportId], references: [id])
   marche      Marche          @relation(fields: [marcheId], references: [id])
   equipements Equipement[]
+  visitesPreventif PreventifVisite[]
   rapports    RapportGenere[]
+  membres     SocieteMembre[]
 
   @@index([airportId])
   @@map("societes")
+}
+
+model SocieteMembre {
+  id        String   @id @default(uuid())
+  societeId String   @map("societe_id")
+  role      String   @db.VarChar(50)
+  nom       String   @map("nom") @db.VarChar(150)
+  email     String   @db.VarChar(255)
+  telephone String   @db.VarChar(20)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  societe Societe @relation(fields: [societeId], references: [id], onDelete: Cascade)
+
+  @@index([societeId])
+  @@map("societe_membres")
 }
 
 model Equipement {
@@ -255,6 +308,33 @@ model InterventionPreventive {
   @@index([airportId, mois])
   @@map("interventions_preventives")
 }
+enum StatutVisitePreventive {
+  PLANIFIEE
+  REALISEE
+  ANNULEE
+}
+
+model PreventifVisite {
+  id             String                  @id @default(uuid())
+  airportId      String                  @map("airport_id")
+  societeId      String                  @map("societe_id")
+  titre          String                  @db.VarChar(255)
+  datePlanifiee  DateTime                @map("date_planifiee") @db.Date
+  dateRealisee   DateTime?               @map("date_realisee") @db.Date
+  statut         StatutVisitePreventive  @default(PLANIFIEE)
+  observations   String?
+  saisiParId     String?                 @map("saisi_par")
+  createdAt      DateTime                @default(now()) @map("created_at")
+  deletedAt      DateTime?               @map("deleted_at")
+
+  airport Airport @relation(fields: [airportId], references: [id])
+  societe Societe @relation(fields: [societeId], references: [id])
+  saisiPar User?  @relation(fields: [saisiParId], references: [id])
+
+  @@index([airportId])
+  @@index([societeId])
+  @@map("preventif_visites")
+}
 
 model Panne {
   id                  String       @id @default(uuid())
@@ -286,10 +366,12 @@ model Reclamation {
   id                       String            @id @default(uuid())
   airportId                String            @map("airport_id")
   panneId                   String            @map("panne_id")
+  objet                      String?           @db.VarChar(255)
+  statut                     StatutReclamation @default(NOUVELLE)
   tNotification              DateTime          @map("t_notification")
   moyenNotification          MoyenNotification @map("moyen_notification")
   tArrivee                    DateTime?         @map("t_arrivee")
-  tempsReactionMinutes         Int?              @map("temps_reaction_minutes") // calculé côté service
+  tempsReactionMinutes         Int?              @map("temps_reaction_minutes")
   conformeSla                  Boolean?          @map("conforme_sla")
   commentaire                   String?
   saisiParId                    String?           @map("saisi_par")

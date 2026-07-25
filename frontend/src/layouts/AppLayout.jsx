@@ -1,50 +1,137 @@
-import { NavLink, Outlet } from 'react-router-dom';
+import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
+import {
+  DashboardIcon, MarchesIcon, SocietesIcon, EquipementsIcon,
+  PreventifIcon, PannesIcon, ReclamationsIcon, RapportsIcon, SloIcon,
+  LogoutIcon, ChevronRightIcon,
+} from '../components/icons.jsx';
+import AirportSelector from '../components/AirportSelector.jsx';
 
-const navItems = [
-  { to: '/', label: 'Tableau de bord' },
-  { to: '/marches', label: 'Marchés' },
-  { to: '/societes', label: 'Sociétés' },
-  { to: '/equipements', label: 'Équipements' },
-  { to: '/pannes', label: 'Pannes' },
-  { to: '/reclamations', label: 'Réclamations' },
-];
+const pageNames = {
+  '/': 'Tableau de bord',
+  '/marches': 'Marchés & Contrats',
+  '/societes': 'Sociétés Prestataires',
+  '/equipements': 'Équipements',
+  '/preventif': 'Maintenance Préventive',
+  '/pannes': 'Gestion des Pannes',
+  '/reclamations': 'Réclamations',
+  '/rapports': 'Rapports & Analytiques',
+  '/slo': 'Analyse SLO',
+};
 
 function AppLayout() {
   const { user, logout } = useAuth();
+  const location = useLocation();
+  const currentPageName = pageNames[location.pathname] || 'Page';
+
+  const navLinkClass = ({ isActive }) => `nav-item${isActive ? ' active' : ''}`;
 
   return (
-    <div className="min-h-screen flex bg-slate-50">
-      <aside className="w-64 bg-slate-900 text-white flex flex-col">
-        <div className="p-6 text-xl font-bold border-b border-slate-700">Antigravity</div>
-        <nav className="flex-1 p-4 space-y-1">
-          {navItems.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.to === '/'}
-              className={({ isActive }) =>
-                `block px-4 py-2 rounded-lg transition-colors ${
-                  isActive ? 'bg-slate-700 text-white' : 'text-slate-300 hover:bg-slate-800'
-                }`
-              }
-            >
-              {item.label}
-            </NavLink>
-          ))}
+      <div className="app-shell">
+        <aside className="layout-sidebar">
+        <div className="sidebar-logo">
+          <div style={{ background: 'white', padding: '3px', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', height: '30px', width: '30px' }}>
+            <img
+              src="/logo.png"
+              alt="Logo"
+              style={{ height: '24px', width: 'auto', objectFit: 'contain' }}
+              onError={(e) => { e.target.style.display = 'none'; }}
+            />
+          </div>
+          <h2>Antigravity</h2>
+        </div>
+
+        <nav className="sidebar-nav">
+          <NavLink to="/" end className={navLinkClass}>
+            <DashboardIcon />
+            Tableau de bord
+          </NavLink>
+
+          {user?.role !== 'TECHNICIEN' && (
+            <>
+              <div className="nav-section">Référentiel</div>
+              <NavLink to="/marches" className={navLinkClass}>
+                <MarchesIcon />
+                Marchés
+              </NavLink>
+              <NavLink to="/societes" className={navLinkClass}>
+                <SocietesIcon />
+                Sociétés
+              </NavLink>
+              <NavLink to="/equipements" className={navLinkClass}>
+                <EquipementsIcon />
+                Équipements
+              </NavLink>
+            </>
+          )}
+
+          <div className="nav-section">Opérations</div>
+          <NavLink to="/preventif" className={navLinkClass}>
+            <PreventifIcon />
+            Préventif
+          </NavLink>
+          <NavLink to="/pannes" className={navLinkClass}>
+            <PannesIcon />
+            Pannes
+          </NavLink>
+          <NavLink to="/reclamations" className={navLinkClass}>
+            <ReclamationsIcon />
+            Réclamations
+          </NavLink>
+
+          {user?.role !== 'TECHNICIEN' && (
+            <>
+              <div className="nav-section">Analyse</div>
+              <NavLink to="/rapports" className={navLinkClass}>
+                <RapportsIcon />
+                Rapports
+              </NavLink>
+              <NavLink to="/slo" className={navLinkClass}>
+                <SloIcon />
+                Analyse SLO
+              </NavLink>
+            </>
+          )}
         </nav>
-        <div className="p-4 border-t border-slate-700">
-          <p className="text-sm text-slate-300">{user?.prenom} {user?.nom}</p>
-          <p className="text-xs text-slate-500 mb-3">{user?.role}</p>
-          <button onClick={logout} className="text-sm text-red-400 hover:text-red-300">
-            Se déconnecter
+
+        <div className="sidebar-footer">
+          <div className="user-avatar">{user?.nom?.charAt(0)}</div>
+          <div className="user-info">
+            <div className="user-name">{user?.prenom} {user?.nom}</div>
+            <div className="user-role">{user?.role?.replace('_', ' ')}</div>
+          </div>
+          <button
+            onClick={logout}
+            className="btn-ghost"
+            style={{ padding: '0.25rem', color: '#64748b', background: 'none', border: 'none', cursor: 'pointer', borderRadius: '6px' }}
+            title="Déconnexion"
+          >
+            <LogoutIcon />
           </button>
         </div>
       </aside>
-      <main className="flex-1 p-8">
-        <Outlet />
+
+      <main className="layout-main">
+        <header className="layout-header">
+          <div className="flex items-center gap-2">
+            <span style={{ color: '#94a3b8', fontSize: '0.8125rem' }}>Accueil</span>
+            <ChevronRightIcon stroke="#94a3b8" />
+            <span style={{ fontSize: '0.8125rem', fontWeight: 500, color: '#0f172a' }}>{currentPageName}</span>
+          </div>
+
+          <div className="flex items-center gap-3">
+          <AirportSelector />
+            <span className="badge badge-info" style={{ fontSize: '0.6875rem' }}>
+              {new Date().toLocaleDateString('fr-FR')}
+            </span>
+          </div>
+        </header>
+
+        <div className="layout-content">
+          <Outlet />
+        </div>
       </main>
-    </div>
+      </div>
   );
 }
 

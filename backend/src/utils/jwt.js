@@ -3,7 +3,9 @@ import { env } from '../config/env.js';
 
 export function signAccessToken(user) {
   return jwt.sign(
-    { sub: user.id, role: user.role, airportId: user.airportId },
+    // CORRECTION Étape 4 : ajout de l'email dans le payload
+    // pour qu'il soit disponible via req.user dans tous les middlewares
+    { sub: user.id, role: user.role, airportId: user.airportId, email: user.email },
     env.jwtAccessSecret,
     { expiresIn: '15m', algorithm: 'HS256' }
   );

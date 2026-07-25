@@ -12,10 +12,7 @@ function computeTempsReaction(tNotification, tArrivee) {
 export async function getAll(tenantFilter, query = {}) {
   const { page = 1, limit = 10, conformeSla } = query;
   const where = { ...tenantFilter, deletedAt: null };
-
-  if (conformeSla !== undefined) {
-    where.conformeSla = conformeSla === 'true'; // Conversion du string en boolean
-  }
+  if (conformeSla !== undefined) where.conformeSla = conformeSla === 'true';
 
   return paginate(prisma.reclamation, { where, orderBy: { createdAt: 'desc' } }, page, limit);
 }
@@ -38,7 +35,7 @@ export async function create(data, user) {
       tArrivee: data.tArrivee ? new Date(data.tArrivee) : null,
       tempsReactionMinutes,
       conformeSla,
-      airportId: user.airportId,
+      airportId: panne.airportId,
       saisiParId: user.id,
     },
   });
@@ -48,6 +45,37 @@ export async function getById(id, tenantFilter) {
   const rec = await prisma.reclamation.findFirst({ where: { id, ...tenantFilter, deletedAt: null } });
   if (!rec) throw new AppError(404, 'Réclamation introuvable', 'NOT_FOUND');
   return rec;
+}
+
+export async function update(id, data, tenantFilter) {
+  const existing = await getById(id, tenantFilter);
+  const payload = { ...data };
+
+  const nextTNotification = payload.tNotification ? new Date(payload.tNotification) : existing.tNotification;
+  const nextTArrivee = payload.tArrivee !== undefined
+    ? (payload.tArrivee ? new Date(payload.tArrivee) : null)
+    : existing.tArrivee;
+
+  if (payload.tNotification) payload.tNotification = nextTNotification;
+  if (payload.tArrivee !== undefined) payload.tArrivee = nextTArrivee;
+
+  // Recalcule automatiquement le temps de reaction / la conformite SLA
+  // si l'une des deux dates a change.
+  if (payload.tNotification || payload.tArrivee !== undefined) {
+    const tempsReactionMinutes = computeTempsReaction(nextTNotification, nextTArrivee);
+    payload.tempsReactionMinutes = tempsReactionMinutes;
+    if (tempsReactionMinutes !== null) {
+      const panne = await prisma.panne.findUnique({
+        where: { id: existing.panneId },
+        include: { equipement: { include: { marche: true } } },
+      });
+      payload.conformeSla = tempsReactionMinutes <= panne.equipement.marche.slaMrt;
+    } else {
+      payload.conformeSla = null;
+    }
+  }
+
+  return prisma.reclamation.update({ where: { id }, data: payload });
 }
 
 export async function remove(id, tenantFilter) {
