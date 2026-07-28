@@ -200,6 +200,7 @@ model MarcheDocument {
   originalName   String                    @map("original_name") @db.VarChar(255)
   mimeType       String                    @map("mime_type") @db.VarChar(100)
   sizeBytes      Int                       @map("size_bytes")
+  selectedPages  Int[]                     @map("selected_pages") @default([])
   statut         StatutExtractionDocument  @default(EN_ATTENTE)
   extractedJson  Json?                     @map("extracted_json")
   confidenceScore Decimal?                 @map("confidence_score") @db.Decimal(5, 2)

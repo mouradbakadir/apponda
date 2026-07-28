@@ -1,8 +1,16 @@
 import fs from 'fs';
+import multer from 'multer';
 import { AppError } from '../utils/AppError.js';
 import { logger } from '../utils/logger.js';
 
 export function errorHandler(err, req, res, next) {
+  if (err instanceof multer.MulterError) {
+    const message = err.code === 'LIMIT_FILE_SIZE'
+      ? 'Le fichier dépasse la taille maximale autorisée (20 Mo)'
+      : 'Erreur lors de l\'upload du fichier';
+    return res.status(400).json({ error: { message, code: err.code } });
+  }
+
   if (err instanceof AppError) {
     return res.status(err.statusCode).json({ 
       error: { 
