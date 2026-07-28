@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { MailIcon, CopyIcon, SendIcon } from './icons.jsx';
+import { reclamationsApi } from '../services/reclamations.api.js';
 
 const emailTypes = [
   { value: 'NOTIF_PANNE', label: "Demande d'intervention (Courte)" },
@@ -16,15 +17,66 @@ function EmailPanel({ open, onClose, reclamations, equipementLabel, societeLabel
   const [emailType, setEmailType] = useState('NOTIF_PANNE');
   const [urgence, setUrgence] = useState('NORMAL');
   const [subject, setSubject] = useState('');
+  const [corps, setCorps] = useState('');
+  const [contexteLibre, setContexteLibre] = useState('');
   const [signataire, setSignataire] = useState('');
   const [fonction, setFonction] = useState('Chef de Division Maintenance');
+  const [destinataire, setDestinataire] = useState('');
+
+  const [generating, setGenerating] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState('');
+  const [sentOk, setSentOk] = useState(false);
 
   if (!open) return null;
 
   const selectedRec = reclamations.find((r) => r.id === selectedRecId);
 
-  function handleGenerate() {
-    alert("La génération automatique du contenu d'email (IA) sera disponible en Phase 4 du projet. Cette interface est prête à l'accueillir.");
+  async function handleGenerate() {
+    if (!selectedRecId) {
+      setError('Sélectionnez une réclamation avant de générer.');
+      return;
+    }
+    setError('');
+    setSentOk(false);
+    setGenerating(true);
+    try {
+      const result = await reclamationsApi.generateEmail(selectedRecId, {
+        type: emailType,
+        urgence,
+        signataire: signataire || null,
+        fonction: fonction || null,
+        contexteLibre: contexteLibre || null,
+      });
+      setSubject(result.objet);
+      setCorps(result.corps);
+      setDestinataire(result.destinataireSuggere || '');
+    } catch (err) {
+      setError(err.response?.data?.error?.message || "Échec de la génération de l'email.");
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  function handleCopy() {
+    navigator.clipboard.writeText(`Objet : ${subject}\n\n${corps}`);
+  }
+
+  async function handleSend() {
+    if (!destinataire || !subject || !corps) {
+      setError("Destinataire, objet et corps sont requis avant l'envoi.");
+      return;
+    }
+    setError('');
+    setSending(true);
+    try {
+      await reclamationsApi.sendEmail(selectedRecId, { destinataire, objet: subject, corps });
+      setSentOk(true);
+    } catch (err) {
+      setError(err.response?.data?.error?.message || "Échec de l'envoi de l'email.");
+    } finally {
+      setSending(false);
+    }
   }
 
   return (
@@ -39,7 +91,7 @@ function EmailPanel({ open, onClose, reclamations, equipementLabel, societeLabel
         display: 'flex', flexDirection: 'column',
       }}>
         <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.0625rem' }}>
+          <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.0625rem' }}>
             <MailIcon size={20} />
             Générer un Email Professionnel
           </h2>
@@ -49,7 +101,7 @@ function EmailPanel({ open, onClose, reclamations, equipementLabel, societeLabel
         <div style={{ padding: '1.5rem', overflowY: 'auto', flex: 1 }}>
           <div className="form-group">
             <label className="form-label">Réclamation liée</label>
-            <select className="form-control" value={selectedRecId} onChange={(e) => setSelectedRecId(e.target.value)}>
+            <select className="form-control" value={selectedRecId} onChange={(e) => { setSelectedRecId(e.target.value); setSubject(''); setCorps(''); setSentOk(false); }}>
               <option value="">— Sélectionnez une réclamation —</option>
               {reclamations.map((r) => (
                 <option key={r.id} value={r.id}>
@@ -92,9 +144,9 @@ function EmailPanel({ open, onClose, reclamations, equipementLabel, societeLabel
           </div>
 
           <div className="form-group">
-            <label className="form-label">Objet de l'email</label>
-            <input type="text" className="form-control" placeholder="Généré automatiquement..."
-              value={subject} onChange={(e) => setSubject(e.target.value)} />
+            <label className="form-label">Contexte additionnel (optionnel)</label>
+            <textarea className="form-control" rows={2} placeholder="Ex: l'équipement fait un bruit anormal depuis ce matin..."
+              value={contexteLibre} onChange={(e) => setContexteLibre(e.target.value)} />
           </div>
 
           <div style={{ borderTop: '1px solid #f1f5f9', margin: '1rem 0' }}></div>
@@ -112,26 +164,51 @@ function EmailPanel({ open, onClose, reclamations, equipementLabel, societeLabel
             </div>
           </div>
 
-          <div style={{ marginTop: '1.5rem' }}>
-            <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>
-              Aperçu en temps réel
+          {error && (
+            <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#991b1b', borderRadius: '8px', padding: '0.625rem 0.875rem', fontSize: '0.8125rem', marginBottom: '1rem' }}>
+              {error}
             </div>
-            <div style={{ border: '1px solid #e2e8f0', borderRadius: '8px', padding: '1rem', background: '#fafafa', minHeight: '120px' }}>
-              <div style={{ fontStyle: 'italic', color: '#94a3b8', fontSize: '0.875rem' }}>
-                Sélectionnez une réclamation et un type d'email pour générer l'aperçu…
-              </div>
-            </div>
+          )}
+
+          <div className="form-group">
+            <label className="form-label">Objet de l'email</label>
+            <input type="text" className="form-control" placeholder="Généré automatiquement..."
+              value={subject} onChange={(e) => setSubject(e.target.value)} />
           </div>
+
+          <div className="form-group">
+            <label className="form-label">Corps de l'email</label>
+            <textarea className="form-control" rows={10} placeholder="Cliquez sur « Générer » pour créer un brouillon, puis modifiez-le librement avant l'envoi..."
+              value={corps} onChange={(e) => setCorps(e.target.value)} />
+          </div>
+
+          <button className="btn btn-secondary" style={{ width: '100%', marginBottom: '1.25rem' }} onClick={handleGenerate} disabled={generating}>
+            {generating ? 'Génération en cours…' : '✨ Générer le brouillon (IA)'}
+          </button>
+
+          <div style={{ borderTop: '1px solid #f1f5f9', margin: '1rem 0' }}></div>
+
+          <div className="form-group">
+            <label className="form-label">Destinataire</label>
+            <input type="email" className="form-control" placeholder="destinataire@societe.com"
+              value={destinataire} onChange={(e) => setDestinataire(e.target.value)} />
+          </div>
+
+          {sentOk && (
+            <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#166534', borderRadius: '8px', padding: '0.625rem 0.875rem', fontSize: '0.8125rem' }}>
+              ✅ Email envoyé avec succès.
+            </div>
+          )}
         </div>
 
         <div style={{ padding: '1rem 1.5rem', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
-        <button className="btn btn-secondary" style={{ gap: '0.375rem' }} onClick={handleGenerate}>
+          <button className="btn btn-secondary" style={{ gap: '0.375rem' }} onClick={handleCopy} disabled={!corps}>
             <CopyIcon size={14} />
             Copier
           </button>
-          <button className="btn btn-primary" style={{ gap: '0.375rem' }} onClick={handleGenerate}>
+          <button className="btn btn-primary" style={{ gap: '0.375rem' }} onClick={handleSend} disabled={sending || !corps}>
             <SendIcon size={14} />
-            Simuler l'envoi
+            {sending ? 'Envoi…' : 'Envoyer'}
           </button>
         </div>
       </div>

@@ -1,4 +1,6 @@
 import * as reclamationsService from '../services/reclamations.service.js';
+import * as emailGenerationService from '../services/emailGenerationService.js';
+import * as emailSenderService from '../services/emailSenderService.js';
 
 export async function getAllController(req, res, next) {
   try { res.json(await reclamationsService.getAll(req.tenantFilter, req.query)); } catch (err) { next(err); }
@@ -23,5 +25,19 @@ export async function removeController(req, res, next) {
   try {
     await reclamationsService.remove(req.params.id, req.tenantFilter);
     res.status(204).send();
+  } catch (err) { next(err); }
+}
+export async function generateEmailController(req, res, next) {
+  try {
+    const result = await emailGenerationService.generateEmail(req.params.id, req.tenantFilter, req.body);
+    res.json(result);
+  } catch (err) { next(err); }
+}
+
+export async function sendEmailController(req, res, next) {
+  try {
+    await reclamationsService.getById(req.params.id, req.tenantFilter);
+    const result = await emailSenderService.sendEmail(req.body);
+    res.json(result);
   } catch (err) { next(err); }
 }
