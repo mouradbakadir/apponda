@@ -1,2 +1,11 @@
 ﻿.env
 node_modules
+login.json
+superviseur.json
+technicien.json
+update.json
+package.json
+package-lock.json
+dashboard (1).js
+test-docker-J.mjs
+backend/resultat_test.txt
