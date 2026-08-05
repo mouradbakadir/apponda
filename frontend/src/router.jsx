@@ -12,6 +12,8 @@ import ReclamationsPage from './pages/ReclamationsPage.jsx';
 import ComingSoonPage from './pages/ComingSoonPage.jsx';
 import PreventifPage from './pages/PreventifPage.jsx';
 import RapportsPage from './pages/RapportsPage.jsx';
+import AnalyseSloPage from './pages/AnalyseSloPage.jsx';
+import HomePage from './pages/HomePage.jsx';
 
 export const router = createBrowserRouter([
   { path: '/login', element: <AuthLayout><LoginPage /></AuthLayout> },
@@ -19,7 +21,8 @@ export const router = createBrowserRouter([
     path: '/',
     element: <ProtectedRoute><AppLayout /></ProtectedRoute>,
     children: [
-      { index: true, element: <DashboardPage /> },
+      { index: true, element: <HomePage /> },
+      { path: 'dashboard', element: <DashboardPage /> },
       { path: 'marches', element: <MarchesPage /> },
       { path: 'societes', element: <SocietesPage /> },
       { path: 'equipements', element: <EquipementsPage /> },
@@ -27,7 +30,7 @@ export const router = createBrowserRouter([
       { path: 'reclamations', element: <ReclamationsPage /> },
       { path: 'preventif', element: <PreventifPage /> },
       { path: 'rapports', element: <RapportsPage /> },
-{ path: 'slo', element: <ComingSoonPage title="Analyse SLO" /> },
+      { path: 'slo', element: <AnalyseSloPage /> },
     ],
   },
 ]);

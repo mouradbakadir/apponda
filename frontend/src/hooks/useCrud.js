@@ -24,13 +24,15 @@ export function useCrud(api) {
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
   async function create(data) {
-    await api.create(data);
+    const created = await api.create(data);
     await fetchAll();
+    return created;
   }
 
   async function update(id, data) {
-    await api.update(id, data);
+    const updated = await api.update(id, data);
     await fetchAll();
+    return updated;
   }
 
   async function remove(id) {

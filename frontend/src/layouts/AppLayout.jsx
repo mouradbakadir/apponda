@@ -1,4 +1,4 @@
-import { NavLink, Outlet, useLocation } from 'react-router-dom';
+import { NavLink, Outlet, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import {
   DashboardIcon, MarchesIcon, SocietesIcon, EquipementsIcon,
@@ -8,7 +8,8 @@ import {
 import AirportSelector from '../components/AirportSelector.jsx';
 
 const pageNames = {
-  '/': 'Tableau de bord',
+  '/': 'Accueil',
+  '/dashboard': 'Tableau de bord',
   '/marches': 'Marchés & Contrats',
   '/societes': 'Sociétés Prestataires',
   '/equipements': 'Équipements',
@@ -38,11 +39,11 @@ function AppLayout() {
               onError={(e) => { e.target.style.display = 'none'; }}
             />
           </div>
-          <h2>Antigravity</h2>
+          <h2>Amnt</h2>
         </div>
 
         <nav className="sidebar-nav">
-          <NavLink to="/" end className={navLinkClass}>
+          <NavLink to="/dashboard" className={navLinkClass}>
             <DashboardIcon />
             Tableau de bord
           </NavLink>
@@ -114,9 +115,15 @@ function AppLayout() {
       <main className="layout-main">
         <header className="layout-header">
           <div className="flex items-center gap-2">
-            <span style={{ color: '#94a3b8', fontSize: '0.8125rem' }}>Accueil</span>
-            <ChevronRightIcon stroke="#94a3b8" />
-            <span style={{ fontSize: '0.8125rem', fontWeight: 500, color: '#0f172a' }}>{currentPageName}</span>
+            <Link to="/" style={{ color: '#94a3b8', fontSize: '0.8125rem', textDecoration: 'none' }}>
+              Accueil
+            </Link>
+            {location.pathname !== '/' && (
+              <>
+                <ChevronRightIcon stroke="#94a3b8" />
+                <span style={{ fontSize: '0.8125rem', fontWeight: 500, color: '#0f172a' }}>{currentPageName}</span>
+              </>
+            )}
           </div>
 
           <div className="flex items-center gap-3">

@@ -1,10 +1,11 @@
-import { logger } from '../utils/logger.js';
+import { logger } from '../../utils/logger.js';
 
 const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
 const OLLAMA_TEXT_MODEL = process.env.OLLAMA_TEXT_MODEL || 'llama3.2';
 const OLLAMA_VISION_MODEL = process.env.OLLAMA_VISION_MODEL || 'qwen2.5vl';
+const OLLAMA_EMBEDDING_MODEL = process.env.OLLAMA_EMBEDDING_MODEL || 'nomic-embed-text';
 
-const TIMEOUT_MS = 120_000;
+const TIMEOUT_MS = 240_000;
 
 async function callOllama(payload) {
   const controller = new AbortController();
@@ -35,23 +36,9 @@ async function callOllama(payload) {
   }
 }
 
-export async function callOllamaVision(imageBase64, prompt) {
-  logger.info(`🖼️  [ollama] Appel vision (modèle: ${OLLAMA_VISION_MODEL})`);
-  const response = await callOllama({
-    model: OLLAMA_VISION_MODEL,
-    prompt,
-    images: [imageBase64],
-    options: { temperature: 0.1 }, // transcription : on veut de la fidélité, pas de la créativité
-  });
-  logger.info(`🖼️  [ollama] Réponse vision reçue (${response.length} caractères)`);
-  return response;
-}
-
 /**
  * Tente d'extraire un objet JSON exploitable d'une réponse potentiellement
  * mal formée : coupe tout ce qui suit la dernière accolade fermante valide.
- * Filet de sécurité pour les cas où le modèle "dérape" après avoir produit
- * un JSON par ailleurs correct (fin de réponse qui part en vrille).
  */
 function tryRepairJson(rawResponse) {
   const lastBrace = rawResponse.lastIndexOf('}');
@@ -64,15 +51,19 @@ function tryRepairJson(rawResponse) {
   }
 }
 
-/**
- * Structure un texte libre en JSON. Réessaie automatiquement en cas de
- * JSON invalide -- format:'json' force Ollama à CONTRAINDRE la sortie,
- * mais ça n'élimine pas totalement le risque avec un petit modèle local,
- * surtout sur des prompts contenant du texte utilisateur imprévisible.
- * @param {string} prompt
- * @param {number} maxAttempts
- */
-export async function callOllamaText(prompt, maxAttempts = 2) {
+async function transcribeImage(imageBase64, prompt) {
+  logger.info(`🖼️  [ollama] Appel vision (modèle: ${OLLAMA_VISION_MODEL})`);
+  const response = await callOllama({
+    model: OLLAMA_VISION_MODEL,
+    prompt,
+    images: [imageBase64],
+    options: { temperature: 0.1 },
+  });
+  logger.info(`🖼️  [ollama] Réponse vision reçue (${response.length} caractères)`);
+  return response;
+}
+
+async function structureText(prompt, maxAttempts = 2) {
   let lastError;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -81,7 +72,7 @@ export async function callOllamaText(prompt, maxAttempts = 2) {
       model: OLLAMA_TEXT_MODEL,
       prompt,
       format: 'json',
-      options: { temperature: 0.2 }, // structuration : discipline de format avant tout, peu de créativité nécessaire
+      options: { temperature: 0.2 },
     });
 
     try {
@@ -99,3 +90,38 @@ export async function callOllamaText(prompt, maxAttempts = 2) {
 
   throw new Error(`Ollama a renvoyé du JSON invalide après ${maxAttempts} tentatives : ${lastError.message}`);
 }
+
+/**
+ * Embedding via l'API dédiée d'Ollama (/api/embeddings, différente de
+ * /api/generate) -- nécessite d'avoir tiré un modèle d'embedding local au
+ * préalable (ex: `ollama pull nomic-embed-text`), sinon cette fonction
+ * lancera une erreur explicite au premier appel, pas avant.
+ */
+async function embed(text) {
+  logger.info(`🔢 [ollama] Appel embedding (modèle: ${OLLAMA_EMBEDDING_MODEL})`);
+  const res = await fetch(`${OLLAMA_BASE_URL}/api/embeddings`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model: OLLAMA_EMBEDDING_MODEL, prompt: text }),
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`Ollama embeddings a répondu ${res.status} : ${errText.slice(0, 500)}`);
+  }
+
+  const data = await res.json();
+  return data.embedding;
+}
+
+/** @type {import('../AIProvider.interface.js').AIProvider} */
+export const ollamaProvider = {
+  transcribeImage,
+  structureText,
+  embed,
+  // Ollama local (CPU, un seul modèle chargé) ne bénéficie d'AUCUNE
+  // parallélisation réelle -- des appels simultanés se partagent les
+  // mêmes ressources et se ralentissent mutuellement jusqu'au timeout,
+  // comme observé en test (job 64, timeout à 240s sous concurrence 3).
+  recommendedConcurrency: 1,
+};

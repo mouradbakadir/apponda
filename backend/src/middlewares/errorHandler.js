@@ -6,7 +6,7 @@ import { logger } from '../utils/logger.js';
 export function errorHandler(err, req, res, next) {
   if (err instanceof multer.MulterError) {
     const message = err.code === 'LIMIT_FILE_SIZE'
-      ? 'Le fichier dépasse la taille maximale autorisée (20 Mo)'
+      ? 'Le fichier dépasse la taille maximale autorisée (50 Mo)' // cohérent avec MAX_FILE_SIZE_BYTES dans middlewares/upload.js
       : 'Erreur lors de l\'upload du fichier';
     return res.status(400).json({ error: { message, code: err.code } });
   }

@@ -18,7 +18,7 @@ function round2(n) {
   return Math.round(n * 100) / 100;
 }
 
-async function computePRR(equipementIds, dateDebut, dateFin) {
+export async function computePRR(equipementIds, dateDebut, dateFin) {
   const interventions = await prisma.interventionPreventive.findMany({
     where: {
       equipementId: { in: equipementIds },
@@ -33,7 +33,7 @@ async function computePRR(equipementIds, dateDebut, dateFin) {
   return round2((totalRealisees / totalPlanifiees) * 100);
 }
 
-async function computeDisponibilite(equipements, dateDebut, dateFin) {
+export async function computeDisponibilite(equipements, dateDebut, dateFin) {
   if (equipements.length === 0) return null;
   const nbJours = daysBetween(dateDebut, dateFin);
   let sommeDisponibilites = 0;
@@ -62,7 +62,7 @@ async function computeDisponibilite(equipements, dateDebut, dateFin) {
   return round2(sommeDisponibilites / equipements.length);
 }
 
-async function computeMRT(equipementIds, dateDebut, dateFin) {
+export async function computeMRT(equipementIds, dateDebut, dateFin) {
   const reclamations = await prisma.reclamation.findMany({
     where: {
       panne: { equipementId: { in: equipementIds } },

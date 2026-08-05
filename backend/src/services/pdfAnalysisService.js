@@ -13,6 +13,50 @@ const NATIVE_TEXT_THRESHOLD = 40;
 // lisibilité marginal sur des tampons déjà nets.
 const RENDER_SCALE = 1.5;
 
+// Nombre maximum de pages analysées automatiquement quand l'utilisateur n'a
+// pas encore de sélecteur de pages dans l'UI (Étape CAS 1, MVP). Au-delà,
+// on tronque plutôt que de lancer une extraction potentiellement très
+// longue (chaque page non-native coûte un appel vision de plusieurs
+// secondes) sur un document de 100+ pages par erreur.
+const MAX_AUTO_PAGES = 15;
+
+/**
+ * Retourne le nombre total de pages d'un PDF, sans analyser leur contenu.
+ * Utilisé quand l'appelant n'a pas encore choisi de pages précises
+ * (upload direct depuis le formulaire "Nouveau Marché", sans sélecteur de
+ * pages) : on doit savoir combien de pages existent avant de décider
+ * lesquelles envoyer à l'extraction.
+ *
+ * @param {Buffer} buffer
+ * @returns {Promise<number>}
+ */
+export async function getPdfPageCount(buffer) {
+  const parser = new PDFParse({ data: buffer });
+  try {
+    const info = await parser.getInfo();
+    return info.total;
+  } finally {
+    await parser.destroy();
+  }
+}
+
+/**
+ * Calcule la liste de pages à analyser quand l'utilisateur n'en a fourni
+ * aucune explicitement. Prend les `MAX_AUTO_PAGES` premières pages du
+ * document (les informations administratives -- couverture, acte
+ * d'engagement, objet, articles SLA -- se trouvent presque toujours en
+ * début de marché ONDA), et journalise un avertissement si le document est
+ * plus long et donc partiellement ignoré.
+ *
+ * @param {Buffer} buffer
+ * @returns {Promise<number[]>}
+ */
+export async function computeDefaultSelectedPages(buffer) {
+  const total = await getPdfPageCount(buffer);
+  const pageCount = Math.min(total, MAX_AUTO_PAGES);
+  return Array.from({ length: pageCount }, (_, i) => i + 1);
+}
+
 /**
  * Analyse les pages sélectionnées d'un PDF et retourne, pour chacune,
  * soit son texte natif (si présent), soit une image PNG base64 prête à

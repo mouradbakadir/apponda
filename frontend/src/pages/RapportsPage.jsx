@@ -4,6 +4,7 @@ import { societesApi } from '../services/societes.api.js';
 import { pannesApi } from '../services/pannes.api.js';
 import { equipementsApi } from '../services/equipements.api.js';
 import { kpiApi } from '../services/kpi.api.js';
+import { useAirport } from '../context/AirportContext.jsx';
 import { FileTextIcon, FileSpreadsheetIcon } from '../components/icons.jsx';
 import PeriodFilter, { periodToDateRange, periodLabel } from '../components/PeriodFilter.jsx';
 import jsPDF from 'jspdf';
@@ -17,7 +18,26 @@ function formatDuration(minutes) {
   return hrs > 0 ? `${hrs}h ${mins}min` : `${mins}min`;
 }
 
+/**
+ * Charge une image (ex: le logo ONDA depuis /public) et la convertit en
+ * base64, format requis par jsPDF pour l'intégrer dans un PDF généré côté
+ * client. Si le logo est introuvable, l'export continue sans bloquer --
+ * mieux vaut un rapport sans logo qu'un export qui plante.
+ */
+async function loadImageAsBase64(url) {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error('Logo introuvable');
+  const blob = await response.blob();
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
 function RapportsPage() {
+  const { airports, selectedAirportId } = useAirport();
   const [marches, setMarches] = useState([]);
   const [societes, setSocietes] = useState([]);
   const [pannes, setPannes] = useState([]);
@@ -25,10 +45,11 @@ function RapportsPage() {
   const [year, setYear] = useState(new Date().getFullYear());
   const [period, setPeriod] = useState('all');
   const [marcheFilter, setMarcheFilter] = useState('all');
-  const [societeFilter, setSocieteFilter] = useState('all'); // stocke desormais le NOM de la societe, pas un id
+  const [societeFilter, setSocieteFilter] = useState('all'); // stocke le NOM de la societe, pas un id
   const [rows, setRows] = useState(null);
   const [emptyReason, setEmptyReason] = useState(null); // 'no-filter' | 'no-period' | null
   const [loading, setLoading] = useState(true);
+  const [exportingPdf, setExportingPdf] = useState(false);
 
   useEffect(() => {
     marchesApi.getAll().then((res) => setMarches(res.data || res));
@@ -37,8 +58,6 @@ function RapportsPage() {
     equipementsApi.getAll().then((res) => setEquipements(res.data || res));
   }, []);
 
-  // Liste des noms d'entreprises uniques (une meme entreprise peut avoir
-  // plusieurs lignes "Societe" en base, une par marche auquel elle est liee).
   const societeNames = Array.from(new Set(societes.map((s) => s.raisonSociale))).sort();
 
   useEffect(() => {
@@ -52,15 +71,11 @@ function RapportsPage() {
     const periodEnd = new Date(dateFin);
     const marcheStart = new Date(marche.dateDebut);
     const marcheEnd = new Date(marche.dateFin);
-    // Chevauchement : le marche existe pour cette periode si ses dates
-    // de contrat croisent au moins partiellement la periode filtree.
     return marcheStart <= periodEnd && marcheEnd >= periodStart;
   }
 
   function targetMarches() {
     if (societeFilter !== 'all') {
-      // Toutes les lignes "Societe" portant ce nom, quel que soit leur marcheId,
-      // pour couvrir le cas d'une entreprise presente sur plusieurs marches.
       const marcheIds = new Set(
         societes.filter((s) => s.raisonSociale === societeFilter).map((s) => s.marcheId)
       );
@@ -69,7 +84,6 @@ function RapportsPage() {
     if (marcheFilter !== 'all') return marches.filter((m) => m.id === marcheFilter);
     return marches;
   }
-  
 
   function handleMarcheChange(e) {
     const value = e.target.value;
@@ -80,7 +94,6 @@ function RapportsPage() {
     }
     const societesDuMarche = societes.filter((s) => s.marcheId === value);
     const noms = Array.from(new Set(societesDuMarche.map((s) => s.raisonSociale)));
-    // Auto-selection uniquement si ce marche n'a qu'une seule entreprise liee
     setSocieteFilter(noms.length === 1 ? noms[0] : 'all');
   }
 
@@ -94,9 +107,6 @@ function RapportsPage() {
     const marcheIdsDeCetteSociete = Array.from(
       new Set(societes.filter((s) => s.raisonSociale === value).map((s) => s.marcheId))
     );
-    // Si l'entreprise n'est liee qu'a UN seul marche, on peut le pre-selectionner.
-    // Si elle est liee a PLUSIEURS marches, on laisse "Tous les marches" affiche,
-    // car le filtre societe couvre deja tous ses marches simultanement.
     setMarcheFilter(marcheIdsDeCetteSociete.length === 1 ? marcheIdsDeCetteSociete[0] : 'all');
   }
 
@@ -105,8 +115,6 @@ function RapportsPage() {
   }
 
   function handleYearBlur(e) {
-    // Garde-fou : corrige une saisie manifestement erronee (ex: "2201" tape par erreur)
-    // sans pour autant limiter la saisie a une liste fermee.
     const num = Number(e.target.value);
     if (Number.isNaN(num) || num < 2000 || num > 2100) {
       setYear(new Date().getFullYear());
@@ -118,7 +126,6 @@ function RapportsPage() {
     setLoading(true);
     const { dateDebut, dateFin } = periodToDateRange(year, period);
 
-    // Etape 1 : marches correspondant aux filtres Marche/Societe (inchange)
     const scopeParFiltres = targetMarches();
     if (scopeParFiltres.length === 0) {
       setRows([]);
@@ -127,7 +134,6 @@ function RapportsPage() {
       return;
     }
 
-    // Etape 2 : parmi ceux-ci, seulement ceux dont le contrat couvre la periode choisie
     const scope = scopeParFiltres.filter((m) => marcheExistePourPeriode(m, year, period));
     if (scope.length === 0) {
       setRows([]);
@@ -170,52 +176,116 @@ function RapportsPage() {
   const globalDispo = rows ? average(rows.map((r) => r.kpi.disponibilite.valeur)) : null;
   const globalPannes = rows ? countPannes() : 0;
 
-  function exportPdf() {
+  // --- Titre et colonnes dynamiques, partagés entre l'écran, le PDF et Excel ---
+
+  const selectedAirport = selectedAirportId !== 'all' ? airports.find((a) => a.id === selectedAirportId) : null;
+
+  // Colonne "Aéroport" affichée UNIQUEMENT en vue nationale (SUPER_ADMIN,
+  // "Tous les aéroports") -- sinon tous les marchés affichés appartiennent
+  // déjà au même aéroport, la colonne serait redondante.
+  const showAirportColumn = selectedAirportId === 'all';
+  // Colonne "Société" affichée UNIQUEMENT quand le rapport est "global"
+  // (aucun filtre société précis) -- sinon le nom de la société est déjà
+  // dans le titre, la colonne serait redondante.
+  const showSocieteColumn = societeFilter === 'all';
+
+  let reportTitle = `Performances par Marché — ${periodLabel(year, period)}`;
+  if (selectedAirport) reportTitle += ` — ${selectedAirport.nom}`;
+  if (societeFilter !== 'all') reportTitle += ` — ${societeFilter}`;
+
+  function airportNameForMarche(marche) {
+    const airport = airports.find((a) => a.id === marche.airportId);
+    return airport ? airport.nom : '-';
+  }
+
+  function societeNamesForMarche(marcheId) {
+    const noms = societes.filter((s) => s.marcheId === marcheId).map((s) => s.raisonSociale);
+    return noms.length > 0 ? noms.join(', ') : '-';
+  }
+
+  async function exportPdf() {
     if (!rows || rows.length === 0) return alert('Aucune donnée à exporter.');
-    const doc = new jsPDF();
-    doc.setFontSize(22);
-    doc.setTextColor(79, 70, 229);
-    doc.text('ONDA', 14, 20);
-    doc.setFontSize(14);
-    doc.setTextColor(15, 23, 42);
-    doc.text('RAPPORT ANALYTIQUE GLOBAL', 200, 20, { align: 'right' });
-    doc.setFontSize(10);
-    doc.setTextColor(100, 116, 139);
-    doc.text(`Période : ${periodLabel(year, period)}`, 200, 26, { align: 'right' });
-    doc.line(14, 30, 200, 30);
+    setExportingPdf(true);
+    try {
+      const doc = new jsPDF();
 
-    const tableData = rows.map((r) => [
-      periodLabel(year, period),
-      r.marche.numeroMarche,
-      r.kpi.prr.valeur !== null ? `${r.kpi.prr.valeur} %` : '-',
-      r.kpi.mrt.valeur !== null ? formatDuration(r.kpi.mrt.valeur) : '-',
-      r.kpi.disponibilite.valeur !== null ? `${r.kpi.disponibilite.valeur} %` : '-',
-    ]);
+      // Logo ONDA en haut à gauche -- si le fichier est introuvable, on
+      // continue sans logo plutôt que de bloquer tout l'export.
+      let logoLoaded = false;
+      try {
+        const logoBase64 = await loadImageAsBase64('/logo.png');
+        doc.addImage(logoBase64, 'PNG', 14, 10, 20, 20);
+        logoLoaded = true;
+      } catch {
+        // pas de logo disponible, export sans
+      }
 
-    autoTable(doc, {
-      startY: 40,
-      headStyles: { fillColor: [79, 70, 229] },
-      head: [['Période', 'Marché', 'PRR', 'MRT', 'Disponibilité']],
-      body: tableData,
-      theme: 'grid',
-    });
+      const textX = logoLoaded ? 40 : 14;
 
-    doc.save(`Rapport_Global_${year}_${period}.pdf`);
+      doc.setFontSize(10);
+      doc.setTextColor(100, 116, 139);
+      doc.text('OFFICE NATIONAL DES AÉROPORTS', textX, 16);
+
+      doc.setFontSize(14);
+      doc.setTextColor(15, 23, 42);
+      doc.text(reportTitle, textX, 24, { maxWidth: 155 });
+
+      doc.setDrawColor(226, 232, 240);
+      doc.line(14, 34, 196, 34);
+
+      const head = ['Marché'];
+      if (showAirportColumn) head.push('Aéroport');
+      if (showSocieteColumn) head.push('Société');
+      head.push('PRR', 'MRT', 'Disponibilité');
+
+      const tableData = rows.map((r) => {
+        const row = [r.marche.numeroMarche];
+        if (showAirportColumn) row.push(airportNameForMarche(r.marche));
+        if (showSocieteColumn) row.push(societeNamesForMarche(r.marche.id));
+        row.push(
+          r.kpi.prr.valeur !== null ? `${r.kpi.prr.valeur} %` : '-',
+          r.kpi.mrt.valeur !== null ? formatDuration(r.kpi.mrt.valeur) : '-',
+          r.kpi.disponibilite.valeur !== null ? `${r.kpi.disponibilite.valeur} %` : '-'
+        );
+        return row;
+      });
+
+      autoTable(doc, {
+        startY: 40,
+        headStyles: { fillColor: [79, 70, 229] },
+        head: [head],
+        body: tableData,
+        theme: 'grid',
+      });
+
+      const finalY = doc.lastAutoTable.finalY || 40;
+      doc.setFontSize(8);
+      doc.setTextColor(148, 163, 184);
+      doc.text(`Généré le ${new Date().toLocaleDateString('fr-FR')} — Amnt, Gestion de la Maintenance ONDA`, 14, finalY + 10);
+
+      const safeTitle = reportTitle.replace(/[^a-zA-Z0-9]+/g, '_');
+      doc.save(`${safeTitle}.pdf`);
+    } finally {
+      setExportingPdf(false);
+    }
   }
 
   function exportExcel() {
     if (!rows || rows.length === 0) return alert('Aucune donnée à exporter.');
-    const data = rows.map((r) => ({
-      Période: periodLabel(year, period),
-      Marché: r.marche.numeroMarche,
-      'PRR (%)': r.kpi.prr.valeur,
-      MRT: r.kpi.mrt.valeur !== null ? formatDuration(r.kpi.mrt.valeur) : '-',
-      'Disponibilité (%)': r.kpi.disponibilite.valeur,
-    }));
+    const data = rows.map((r) => {
+      const row = { Marché: r.marche.numeroMarche };
+      if (showAirportColumn) row['Aéroport'] = airportNameForMarche(r.marche);
+      if (showSocieteColumn) row['Société'] = societeNamesForMarche(r.marche.id);
+      row['PRR (%)'] = r.kpi.prr.valeur;
+      row['MRT'] = r.kpi.mrt.valeur !== null ? formatDuration(r.kpi.mrt.valeur) : '-';
+      row['Disponibilité (%)'] = r.kpi.disponibilite.valeur;
+      return row;
+    });
     const worksheet = XLSX.utils.json_to_sheet(data);
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Rapport Global');
-    XLSX.writeFile(workbook, `Extract_Rapport_${year}_${period}.xlsx`);
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Rapport');
+    const safeTitle = reportTitle.replace(/[^a-zA-Z0-9]+/g, '_');
+    XLSX.writeFile(workbook, `${safeTitle}.xlsx`);
   }
 
   const noDataAtAll = !rows || rows.length === 0;
@@ -228,9 +298,9 @@ function RapportsPage() {
           <p className="mb-0">Vue consolidée des performances de maintenance et KPIs</p>
         </div>
         <div className="flex gap-2">
-          <button className="btn btn-secondary" onClick={exportPdf}>
+          <button className="btn btn-secondary" onClick={exportPdf} disabled={exportingPdf}>
             <FileTextIcon size={15} />
-            Export PDF
+            {exportingPdf ? 'Génération...' : 'Export PDF'}
           </button>
           <button className="btn btn-secondary" onClick={exportExcel}>
             <FileSpreadsheetIcon size={15} />
@@ -316,10 +386,7 @@ function RapportsPage() {
 
           <div className="table-container">
             <div style={{ padding: '0.75rem 1rem', borderBottom: '1px solid #e2e8f0' }}>
-              <h3 style={{ fontSize: '0.875rem', margin: 0, color: '#374151' }}>
-                Performances par Marché — {periodLabel(year, period)}
-                {societeFilter !== 'all' && <span style={{ fontWeight: 400, color: '#64748b' }}> — {societeFilter}</span>}
-              </h3>
+              <h3 style={{ fontSize: '0.875rem', margin: 0, color: '#374151' }}>{reportTitle}</h3>
             </div>
             <table className="table">
               <thead>

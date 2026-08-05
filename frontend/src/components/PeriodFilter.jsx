@@ -1,7 +1,5 @@
 const monthNames = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
 
-
-
 export function periodToDateRange(year, period) {
   if (period === 'all') return { dateDebut: `${year}-01-01`, dateFin: `${year}-12-31` };
   if (period.startsWith('T')) {
@@ -37,7 +35,13 @@ export function isDateInYearPeriod(dateStr, year, period) {
   return period === String(month).padStart(2, '0');
 }
 
-function PeriodFilter({ year, onYearChange, period, onPeriodChange }) {
+/**
+ * @param {boolean} [quartersOnly] - si true, retire l'option "Toute l'année"
+ *   et le sous-menu "Par Mois", ne garde que les 4 trimestres. Utilisé par
+ *   Dashboard et Analyse SLO -- Pannes et Réclamations gardent le
+ *   comportement complet par défaut (quartersOnly absent/false).
+ */
+function PeriodFilter({ year, onYearChange, period, onPeriodChange, quartersOnly = false }) {
   return (
     <>
       <div className="form-group mb-0">
@@ -68,21 +72,32 @@ function PeriodFilter({ year, onYearChange, period, onPeriodChange }) {
       </div>
       <div className="form-group mb-0">
         <label className="form-label" style={{ fontSize: '0.6875rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#64748b' }}>
-          Période
+          {quartersOnly ? 'Trimestre' : 'Période'}
         </label>
         <select className="form-control" style={{ minWidth: '200px' }} value={period} onChange={(e) => onPeriodChange(e.target.value)}>
-          <option value="all">Toute l'année {year}</option>
-          <optgroup label="Par Trimestre">
-            <option value="T1">Trimestre 1 (Jan - Mar)</option>
-            <option value="T2">Trimestre 2 (Avr - Juin)</option>
-            <option value="T3">Trimestre 3 (Juil - Sept)</option>
-            <option value="T4">Trimestre 4 (Oct - Déc)</option>
-          </optgroup>
-          <optgroup label="Par Mois">
-            {monthNames.map((m, i) => (
-              <option key={m} value={String(i + 1).padStart(2, '0')}>{m}</option>
-            ))}
-          </optgroup>
+          {!quartersOnly && <option value="all">Toute l'année {year}</option>}
+          {quartersOnly ? (
+            <>
+              <option value="T1">Trimestre 1 (Jan - Mar)</option>
+              <option value="T2">Trimestre 2 (Avr - Juin)</option>
+              <option value="T3">Trimestre 3 (Juil - Sept)</option>
+              <option value="T4">Trimestre 4 (Oct - Déc)</option>
+            </>
+          ) : (
+            <>
+              <optgroup label="Par Trimestre">
+                <option value="T1">Trimestre 1 (Jan - Mar)</option>
+                <option value="T2">Trimestre 2 (Avr - Juin)</option>
+                <option value="T3">Trimestre 3 (Juil - Sept)</option>
+                <option value="T4">Trimestre 4 (Oct - Déc)</option>
+              </optgroup>
+              <optgroup label="Par Mois">
+                {monthNames.map((m, i) => (
+                  <option key={m} value={String(i + 1).padStart(2, '0')}>{m}</option>
+                ))}
+              </optgroup>
+            </>
+          )}
         </select>
       </div>
     </>

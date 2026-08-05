@@ -107,6 +107,7 @@ model Airport {
   societes      Societe[]
   equipements   Equipement[]
   preventifs    InterventionPreventive[]
+  sloConfigs  SloConfig[]
   visitesPreventifSaisies PreventifVisite[]
   pannes        Panne[]
   reclamations  Reclamation[]
@@ -180,6 +181,7 @@ model Marche {
   equipements  Equipement[]
   rapports     RapportGenere[]
   documents MarcheDocument[]
+  sloConfigs  SloConfig[]
 
   @@unique([airportId, numeroMarche])
   @@index([airportId])
@@ -201,6 +203,9 @@ model MarcheDocument {
   mimeType       String                    @map("mime_type") @db.VarChar(100)
   sizeBytes      Int                       @map("size_bytes")
   selectedPages  Int[]                     @map("selected_pages") @default([])
+  selectedPagesAuto Boolean @default(false) @map("selected_pages_auto")
+  partialPages      Json    @default("{}") @map("partial_pages")
+airportMismatch Boolean @default(false) @map("airport_mismatch")
   statut         StatutExtractionDocument  @default(EN_ATTENTE)
   extractedJson  Json?                     @map("extracted_json")
   confidenceScore Decimal?                 @map("confidence_score") @db.Decimal(5, 2)
@@ -220,14 +225,8 @@ model Societe {
   airportId           String   @map("airport_id")
   marcheId            String   @map("marche_id")
   raisonSociale       String   @map("raison_sociale") @db.VarChar(255)
-  rcNumber            String   @map("rc_number") @db.VarChar(50)
-  ice                 String   @db.VarChar(15)
-  adresse             String
-  telephone           String   @db.VarChar(20)
-  emailContact        String   @map("email_contact") @db.VarChar(255)
-  emailNotification   String   @map("email_notification") @db.VarChar(255)
-  contactUrgenceNom   String   @map("contact_urgence_nom") @db.VarChar(100)
-  contactUrgenceTel   String   @map("contact_urgence_tel") @db.VarChar(20)
+  telephone           String?   @db.VarChar(20)
+  emailContact        String?   @map("email_contact") @db.VarChar(255)
   createdAt           DateTime @default(now()) @map("created_at")
   deletedAt DateTime? @map("deleted_at")
 
@@ -237,6 +236,7 @@ model Societe {
   visitesPreventif PreventifVisite[]
   rapports    RapportGenere[]
   membres     SocieteMembre[]
+  sloConfig   SloConfig?
 
   @@index([airportId])
   @@map("societes")
@@ -425,4 +425,25 @@ model RapportGenere {
   genePar  User?    @relation(fields: [genereParId], references: [id])
 
   @@map("rapports_generes")
+}
+model SloConfig {
+  id              String   @id @default(uuid())
+  airportId       String   @map("airport_id")
+  societeId       String   @unique @map("societe_id")
+  marcheId        String   @map("marche_id")
+  seuilPrr        Decimal  @map("seuil_prr") @db.Decimal(5, 2)
+  coefPrr         Decimal  @map("coef_prr") @db.Decimal(5, 2)
+  seuilMrtHeures  Decimal  @map("seuil_mrt_heures") @db.Decimal(6, 3)
+  coefMrt         Decimal  @map("coef_mrt") @db.Decimal(5, 2)
+  seuilDispo      Decimal  @map("seuil_dispo") @db.Decimal(5, 2)
+  coefDispo       Decimal  @map("coef_dispo") @db.Decimal(5, 2)
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  airport Airport @relation(fields: [airportId], references: [id])
+  societe Societe @relation(fields: [societeId], references: [id])
+  marche  Marche  @relation(fields: [marcheId], references: [id])
+
+  @@index([airportId])
+  @@map("slo_configs")
 }

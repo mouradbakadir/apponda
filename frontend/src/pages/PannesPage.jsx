@@ -37,6 +37,12 @@ function statutBadgeClass(statut) {
   return 'badge-warning';
 }
 
+function impactBadgeClass(impact) {
+  if (impact === 'CRITIQUE') return 'badge-danger';
+  if (impact === 'MAJEUR') return 'badge-warning';
+  return 'badge-neutral'; // MINEUR
+}
+
 function PannesPage() {
   const { user } = useAuth();
   const isSuperviseur = user?.role === 'SUPER_ADMIN' || user?.role === 'SUPERVISEUR';
@@ -244,6 +250,7 @@ function PannesPage() {
                 <th>Début (T_panne)</th>
                 <th>Fin (T_reprise)</th>
                 <th>Durée d'arrêt</th>
+                <th>Impact</th>
                 <th>Statut</th>
                 <th className="text-right">Actions</th>
               </tr>
@@ -269,6 +276,7 @@ function PannesPage() {
                         ? <span style={{ color: '#d97706' }}>En cours</span>
                         : formatDuree(p.dureeArretMinutes)}
                     </td>
+                    <td><span className={`badge ${impactBadgeClass(p.impact)}`}>{p.impact}</span></td>
                     <td><span className={`badge ${statutBadgeClass(p.statut)}`}>{p.statut}</span></td>
                     <td className="text-right">
                       <div style={{ display: 'flex', gap: '0.25rem', justifyContent: 'flex-end' }}>
@@ -384,6 +392,16 @@ function PannesPage() {
             <div className="form-group">
               <label className="form-label">Description</label>
               <textarea className="form-control" rows={2} disabled value={activePanne.description} />
+            </div>
+            <div className="flex gap-4">
+              <div className="form-group w-full">
+                <label className="form-label">Cause</label>
+                <input type="text" className="form-control" disabled value={activePanne.causePanne} />
+              </div>
+              <div className="form-group w-full">
+                <label className="form-label">Impact</label>
+                <input type="text" className="form-control" disabled value={activePanne.impact} />
+              </div>
             </div>
             <div className="flex gap-4">
               <div className="form-group w-full">

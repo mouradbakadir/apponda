@@ -1,12 +1,16 @@
 import { useState } from 'react';
 import { useCrud } from '../hooks/useCrud.js';
+import { usePdfExtraction } from '../hooks/usePdfExtraction.js';
 import { marchesApi } from '../services/marches.api.js';
+import { marcheDocumentsApi } from '../services/marcheDocuments.api.js';
+import { useAuth } from '../context/AuthContext.jsx';
+import { useAirport } from '../context/AirportContext.jsx';
 import Modal from '../components/Modal.jsx';
 import ConfirmModal from '../components/ConfirmModal.jsx';
 import { PlusIcon, EditIcon, TrashIcon, UploadCloudIcon, MarchesIcon } from '../components/icons.jsx';
 
 const emptyForm = {
-  numeroMarche: '', objet: '', typeMaintenance: 'MIXTE', statut: 'BROUILLON',
+  airportId: '', numeroMarche: '', objet: '', typeMaintenance: 'MIXTE', statut: 'BROUILLON',
   slaDisponibilite: '', slaPrr: '', slaMrt: '', dateDebut: '', dateFin: '',
 };
 
@@ -15,6 +19,11 @@ function formatDateFR(iso) {
   const d = new Date(iso);
   if (isNaN(d)) return '-';
   return d.toLocaleDateString('fr-FR');
+}
+function formatFileSize(bytes) {
+  if (!bytes) return '';
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} Ko`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} Mo`;
 }
 
 function statutBadgeClass(statut) {
@@ -25,23 +34,40 @@ function statutBadgeClass(statut) {
 }
 
 function MarchesPage() {
-  const { items, loading, error, create, update, remove } = useCrud(marchesApi);
+  const { user } = useAuth();
+  const { airports, selectedAirportId } = useAirport();
+  const isSuperAdmin = user?.role === 'SUPER_ADMIN';
+
+  const { items, loading, error, create, update, remove, refetch } = useCrud(marchesApi);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [formError, setFormError] = useState('');
   const [confirmTarget, setConfirmTarget] = useState(null); // { type: 'one'|'all', row? }
 
+  // CAS 1 : PDF ajouté pendant la création -- extraction IA OPTIONNELLE,
+  // jamais déclenchée automatiquement au dépôt du fichier.
+  const pdfExtraction = usePdfExtraction();
+  
+
+  // Ajout d'un document à un marché déjà existant -- simple archivage,
+  // aucune extraction IA, aucune comparaison, aucun pré-remplissage.
+  const [addDocTarget, setAddDocTarget] = useState(null); // { row } | null
+  const [addDocStatus, setAddDocStatus] = useState('idle'); // idle | uploading | done | error
+  const [addDocError, setAddDocError] = useState('');
+
   function openCreate() {
     setEditingId(null);
-    setForm(emptyForm);
+    setForm({ ...emptyForm, airportId: isSuperAdmin && selectedAirportId !== 'all' ? selectedAirportId : '' });
     setFormError('');
+    pdfExtraction.reset();
     setModalOpen(true);
   }
 
   function openEdit(row) {
     setEditingId(row.id);
     setForm({
+      airportId: row.airportId,
       numeroMarche: row.numeroMarche,
       objet: row.objet,
       typeMaintenance: row.typeMaintenance,
@@ -53,17 +79,70 @@ function MarchesPage() {
       dateFin: row.dateFin.slice(0, 10),
     });
     setFormError('');
+    pdfExtraction.reset();
     setModalOpen(true);
   }
 
-  function handleUploadClick(e) {
-    e.stopPropagation();
-    alert('La gestion documentaire des marchés (import PDF) sera disponible en Phase 3 du projet.');
+  // --- CAS 1 : le dépôt de fichier ne fait QUE mémoriser le fichier -------
+  async function handleFileSelected(e) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+
+    if (isSuperAdmin && !form.airportId) {
+      setFormError("Sélectionnez d'abord un aéroport avant d'ajouter le PDF.");
+      return;
+    }
+
+    setFormError('');
+    // Le fichier est réellement envoyé et sauvegardé dès le dépôt
+    // (autoExtract: false) -- il ne sera plus jamais perdu si l'utilisateur
+    // enregistre sans avoir cliqué sur "Extraire".
+    try {
+      await pdfExtraction.upload(file, {
+        airportId: isSuperAdmin ? form.airportId : undefined,
+        autoExtract: false,
+      });
+    } catch {
+      // erreur déjà exposée par pdfExtraction.error
+    }
+  }
+
+ function handleLaunchExtraction() {
+    if (!pdfExtraction.document?.id) return;
+    pdfExtraction.startExtraction(pdfExtraction.document.id);
+  }
+
+  // Dès que l'extraction CAS 1 se termine SANS problème d'aéroport, on
+  // pré-remplit le formulaire -- l'utilisateur reste entièrement libre de
+  // tout corriger avant d'enregistrer.
+  if (pdfExtraction.status === 'done' && pdfExtraction.document?.extractedJson && !editingId) {
+    const extracted = pdfExtraction.document.extractedJson;
+    const shouldPrefill = form.numeroMarche === '' && form.objet === '' && !pdfExtraction.document.airportMismatch;
+    if (shouldPrefill) {
+      setForm((prev) => ({
+        ...prev,
+        numeroMarche: extracted.numeroMarche ?? prev.numeroMarche,
+        objet: extracted.objet ?? prev.objet,
+        typeMaintenance: extracted.typeMaintenance ?? prev.typeMaintenance,
+        slaDisponibilite: extracted.slaDisponibilite ?? prev.slaDisponibilite,
+        slaPrr: extracted.slaPrr ?? prev.slaPrr,
+        slaMrt: extracted.slaMrt ?? prev.slaMrt,
+        dateDebut: extracted.dateDebut ?? prev.dateDebut,
+        dateFin: extracted.dateFin ?? prev.dateFin,
+      }));
+    }
   }
 
   async function handleSubmit(e) {
     e.preventDefault();
     setFormError('');
+
+    if (isSuperAdmin && !form.airportId) {
+      setFormError("L'aéroport est obligatoire.");
+      return;
+    }
+
     const payload = {
       numeroMarche: form.numeroMarche,
       objet: form.objet,
@@ -75,9 +154,28 @@ function MarchesPage() {
       dateDebut: form.dateDebut,
       dateFin: form.dateFin,
     };
+    if (isSuperAdmin) payload.airportId = form.airportId;
+
     try {
-      if (editingId) await update(editingId, payload);
-      else await create(payload);
+      if (editingId) {
+        await update(editingId, payload);
+      } else {
+        const nouveauMarche = await create(payload);
+        // Si un PDF a été extrait pendant la création (bouton cliqué), on le
+        // relie maintenant au marché qui vient d'être réellement créé.
+        if (pdfExtraction.document?.id) {
+          await marcheDocumentsApi.attach(pdfExtraction.document.id, nouveauMarche.id).catch(() => {
+            // Non bloquant : le marché est créé avec succès même si le
+            // rattachement du document échoue.
+          });
+          // NOUVEAU : create() a déjà rafraîchi le tableau, mais AVANT que
+          // le document ne soit rattaché (l'attach se fait juste au-dessus,
+          // après coup). Sans ce second rafraîchissement, le tableau reste
+          // figé sur l'état "sans document" même si le rattachement a
+          // réussi en base.
+          await refetch();
+        }
+      }
       setModalOpen(false);
     } catch (err) {
       const details = err.response?.data?.error?.details;
@@ -85,6 +183,36 @@ function MarchesPage() {
         details ? details.map((d) => `${d.champ}: ${d.message}`).join(' | ')
                 : err.response?.data?.error?.message || 'Erreur'
       );
+    }
+  }
+
+  // --- Ajout d'un document à un marché existant (simple archivage) --------
+  function openAddDocument(row) {
+    setAddDocTarget({ row });
+    setAddDocStatus('idle');
+    setAddDocError('');
+  }
+
+  function closeAddDocument() {
+    setAddDocTarget(null);
+    setAddDocStatus('idle');
+    setAddDocError('');
+  }
+
+  async function handleFileSelectedCaseTwo(e) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file || !addDocTarget) return;
+
+    setAddDocStatus('uploading');
+    setAddDocError('');
+    try {
+      await marcheDocumentsApi.upload(file, { marcheId: addDocTarget.row.id });
+      setAddDocStatus('done');
+      refetch(); // NOUVEAU : le tableau doit refléter le document tout de suite
+    } catch (err) {
+      setAddDocStatus('error');
+      setAddDocError(err.response?.data?.error?.message || "Erreur lors de l'ajout du document");
     }
   }
 
@@ -118,10 +246,7 @@ function MarchesPage() {
         </div>
         <div className="flex gap-2">
           {items.length > 0 && (
-            <button
-              className="btn btn-danger"
-              onClick={() => setConfirmTarget({ type: 'all' })}
-            >
+            <button className="btn btn-danger" onClick={() => setConfirmTarget({ type: 'all' })}>
               <TrashIcon size={16} />
               Supprimer tout
             </button>
@@ -140,19 +265,19 @@ function MarchesPage() {
         <div className="table-container">
           <div className="overflow-x-auto w-full">
             <table className="table" style={{ minWidth: '1000px' }}>
-            <thead>
-  <tr>
-    <th>Numéro</th>
-    <th>Objet</th>
-    <th>SLO Disponibilité</th>
-    <th>SLO PRR</th>
-    <th>SLO MRT</th>
-    <th>Document</th>
-    <th>Statut</th>
-    <th>Période</th>
-    <th style={{ width: '120px', textAlign: 'right' }}>Actions</th>
-  </tr>
-</thead>
+              <thead>
+                <tr>
+                  <th>Numéro</th>
+                  <th>Objet</th>
+                  <th>SLO Disponibilité</th>
+                  <th>SLO PRR</th>
+                  <th>SLO MRT</th>
+                  <th>Document</th>
+                  <th>Statut</th>
+                  <th>Période</th>
+                  <th style={{ width: '120px', textAlign: 'right' }}>Actions</th>
+                </tr>
+              </thead>
               <tbody>
                 {items.length === 0 && (
                   <tr>
@@ -188,19 +313,43 @@ function MarchesPage() {
                       </span>
                     </td>
                     <td>
-  <span style={{ display: 'inline-flex', alignItems: 'center', padding: '0.125rem 0.5rem', background: '#f5f3ff', color: '#7c3aed', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 600 }}>
-    {m.slaMrt} min
-  </span>
-</td>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', padding: '0.125rem 0.5rem', background: '#f5f3ff', color: '#7c3aed', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 600 }}>
+                        {m.slaMrt} min
+                      </span>
+                    </td>
                     <td>
-                      <button
-                        onClick={handleUploadClick}
-                        title="Importer le contrat"
-                        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.375rem', padding: '0.375rem 0.625rem', background: 'transparent', border: '1px dashed #cbd5e1', borderRadius: '6px', color: '#64748b', fontSize: '0.75rem', cursor: 'pointer' }}
-                      >
-                        <UploadCloudIcon size={14} />
-                        <span>Ajouter PDF</span>
-                      </button>
+                      {m.documents && m.documents.length > 0 ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.375rem 0.625rem', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', maxWidth: '230px' }}>
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" />
+                          </svg>
+                          <div style={{ minWidth: 0, flex: 1 }}>
+                            <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={m.documents[0].originalName}>
+                              {m.documents[0].originalName}
+                            </div>
+                            <div style={{ fontSize: '0.6875rem', color: '#94a3b8' }}>{formatFileSize(m.documents[0].sizeBytes)}</div>
+                          </div>
+                          <button type="button" title="Télécharger" onClick={() => marcheDocumentsApi.download(m.documents[0].id, m.documents[0].originalName)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', padding: '0.125rem', flexShrink: 0 }}>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
+                            </svg>
+                          </button>
+                          <button type="button" title="Remplacer le document" onClick={() => openAddDocument(m)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', padding: '0.125rem', flexShrink: 0 }}>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" />
+                            </svg>
+                          </button>
+                        </div>
+                      ) : (
+                        <label
+                          title="Importer le contrat"
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.375rem', padding: '0.375rem 0.625rem', background: 'transparent', border: '1px dashed #cbd5e1', borderRadius: '6px', color: '#64748b', fontSize: '0.75rem', cursor: 'pointer' }}
+                          onClick={() => openAddDocument(m)}
+                        >
+                          <UploadCloudIcon size={14} />
+                          <span>Ajouter PDF</span>
+                        </label>
+                      )}
                     </td>
                     <td>
                       <span className={`badge ${statutBadgeClass(m.statut)}`}>{m.statut}</span>
@@ -210,12 +359,12 @@ function MarchesPage() {
                     </td>
                     <td style={{ width: '120px' }}>
                       <div style={{ display: 'flex', gap: '0.25rem', justifyContent: 'flex-end' }}>
-                      <button className="btn-action-icon btn-edit" title="Éditer" onClick={() => openEdit(m)}>
-  <EditIcon size={16} />
-</button>
-<button className="btn-action-icon btn-delete" title="Supprimer" onClick={() => setConfirmTarget({ type: 'one', row: m })}>
-  <TrashIcon size={16} />
-</button>
+                        <button className="btn-action-icon btn-edit" title="Éditer" onClick={() => openEdit(m)}>
+                          <EditIcon size={16} />
+                        </button>
+                        <button className="btn-action-icon btn-delete" title="Supprimer" onClick={() => setConfirmTarget({ type: 'one', row: m })}>
+                          <TrashIcon size={16} />
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -228,6 +377,24 @@ function MarchesPage() {
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editingId ? 'Modifier le Marché' : 'Nouveau Marché'}>
         <form onSubmit={handleSubmit}>
+          {isSuperAdmin && (
+            <div className="form-group">
+              <label className="form-label">Aéroport</label>
+              <select
+                className="form-control"
+                required
+                disabled={!!editingId}
+                value={form.airportId}
+                onChange={(e) => setForm({ ...form, airportId: e.target.value })}
+              >
+                <option value="">Sélectionner un aéroport…</option>
+                {airports.map((a) => (
+                  <option key={a.id} value={a.id}>{a.codeIata} - {a.nom}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
           <div className="form-group">
             <label className="form-label">Numéro de Marché</label>
             <input type="text" className="form-control" placeholder="Ex: 014/24" required
@@ -240,14 +407,24 @@ function MarchesPage() {
               value={form.objet} onChange={(e) => setForm({ ...form, objet: e.target.value })} />
           </div>
 
-          <div className="form-group">
-            <label className="form-label">Statut</label>
-            <select className="form-control" value={form.statut} onChange={(e) => setForm({ ...form, statut: e.target.value })}>
-              <option value="BROUILLON">Brouillon</option>
-              <option value="ACTIF">Actif</option>
-              <option value="EXPIRE">Expiré</option>
-              <option value="RESILIE">Résilié</option>
-            </select>
+          <div className="flex gap-4">
+            <div className="form-group w-full">
+              <label className="form-label">Statut</label>
+              <select className="form-control" value={form.statut} onChange={(e) => setForm({ ...form, statut: e.target.value })}>
+                <option value="BROUILLON">Brouillon</option>
+                <option value="ACTIF">Actif</option>
+                <option value="EXPIRE">Expiré</option>
+                <option value="RESILIE">Résilié</option>
+              </select>
+            </div>
+            <div className="form-group w-full">
+              <label className="form-label">Type de maintenance</label>
+              <select className="form-control" value={form.typeMaintenance} onChange={(e) => setForm({ ...form, typeMaintenance: e.target.value })}>
+                <option value="PREVENTIVE">Préventive</option>
+                <option value="CORRECTIVE">Corrective</option>
+                <option value="MIXTE">Mixte</option>
+              </select>
+            </div>
           </div>
 
           <div className="nav-section" style={{ paddingLeft: 0 }}>Niveaux de Service (SLO)</div>
@@ -283,20 +460,66 @@ function MarchesPage() {
             </div>
           </div>
 
-          <div className="nav-section" style={{ paddingLeft: 0 }}>Document du Marché (PDF)</div>
+          {!editingId && (
+            <>
+              <div className="nav-section" style={{ paddingLeft: 0 }}>Document du Marché (PDF) — optionnel</div>
 
-          <div className="form-group">
-            <div
-              className="pdf-dropzone"
-              onClick={() => alert('La gestion documentaire des marchés (import PDF) sera disponible en Phase 3 du projet.')}
-            >
-              <div className="pdf-dropzone-icon"><UploadCloudIcon size={24} /></div>
-              <div className="pdf-dropzone-text">
-                <strong>Glissez-déposez</strong> votre fichier PDF ici
+              <div className="form-group">
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  style={{ marginBottom: '0.75rem' }}
+                  disabled={!pdfExtraction.document?.id || pdfExtraction.status === 'uploading' || pdfExtraction.status === 'polling'}
+                  onClick={handleLaunchExtraction}
+                >
+                   Extraire les informations via IA (optionnel)
+                </button>
+                {!pdfExtraction.document?.id && (
+                  <p className="text-muted" style={{ fontSize: '0.75rem', marginTop: '-0.5rem', marginBottom: '0.75rem' }}>
+                    Sélectionnez d'abord un fichier PDF ci-dessous pour activer ce bouton.
+                  </p>
+                )}
+
+                <label
+                  htmlFor="pdf-upload-input"
+                  className="pdf-dropzone"
+                  style={{ cursor: isSuperAdmin && !form.airportId ? 'not-allowed' : 'pointer', opacity: isSuperAdmin && !form.airportId ? 0.5 : 1 }}
+                >
+                  <div className="pdf-dropzone-icon"><UploadCloudIcon size={24} /></div>
+                  <div className="pdf-dropzone-text">
+                    <strong>Glissez-déposez</strong> votre fichier PDF ici
+                  </div>
+                  <div className="pdf-dropzone-hint">
+                    {isSuperAdmin && !form.airportId
+                      ? 'Sélectionnez un aéroport avant d\'ajouter le PDF'
+                      : pdfExtraction.document
+                        ? `Fichier enregistré : ${pdfExtraction.document.originalName}`
+                        : 'ou cliquez pour sélectionner · PDF uniquement · Max 50 Mo'}
+                  </div>
+                </label>
+                <input
+                  id="pdf-upload-input"
+                  type="file"
+                  accept="application/pdf"
+                  style={{ display: 'none' }}
+                  disabled={isSuperAdmin && !form.airportId}
+                  onChange={handleFileSelected}
+                />
+
+                {pdfExtraction.status === 'uploading' && <p className="text-muted" style={{ marginTop: '0.5rem' }}>Envoi du PDF en cours...</p>}
+                {pdfExtraction.status === 'polling' && <p className="text-muted" style={{ marginTop: '0.5rem' }}>{pdfExtraction.progressMessage}</p>}
+                {pdfExtraction.status === 'done' && pdfExtraction.document?.airportMismatch && (
+                  <p style={{ color: '#dc2626', marginTop: '0.5rem', fontSize: '0.875rem', fontWeight: 600 }}>
+                    ⚠️ Ce document ne semble pas concerner votre aéroport — le formulaire n'a PAS été pré-rempli automatiquement. Vérifiez que vous avez uploadé le bon marché.
+                  </p>
+                )}
+                {pdfExtraction.status === 'done' && !pdfExtraction.document?.airportMismatch && (
+                  <p style={{ color: '#059669', marginTop: '0.5rem', fontSize: '0.875rem' }}>✓ Formulaire pré-rempli à partir du PDF — vérifiez et corrigez si besoin avant d'enregistrer.</p>
+                )}
+                {pdfExtraction.status === 'error' && <p style={{ color: '#dc2626', marginTop: '0.5rem', fontSize: '0.875rem' }}>{pdfExtraction.error}</p>}
               </div>
-              <div className="pdf-dropzone-hint">ou cliquez pour sélectionner · PDF uniquement · Max 50 Mo</div>
-            </div>
-          </div>
+            </>
+          )}
 
           {formError && <p style={{ color: '#dc2626', fontSize: '0.875rem' }}>{formError}</p>}
 
@@ -305,6 +528,26 @@ function MarchesPage() {
             <button type="submit" className="btn btn-primary">Enregistrer</button>
           </div>
         </form>
+      </Modal>
+
+      {/* Ajout d'un document à un marché existant -- simple archivage */}
+      <Modal open={!!addDocTarget} onClose={closeAddDocument} title={`Ajouter un document — ${addDocTarget?.row?.numeroMarche || ''}`}>
+        <label htmlFor="pdf-upload-case2" className="pdf-dropzone" style={{ cursor: 'pointer' }}>
+          <div className="pdf-dropzone-icon"><UploadCloudIcon size={24} /></div>
+          <div className="pdf-dropzone-text"><strong>Glissez-déposez</strong> votre fichier PDF ici</div>
+          <div className="pdf-dropzone-hint">ou cliquez pour sélectionner · PDF uniquement · Max 50 Mo</div>
+        </label>
+        <input id="pdf-upload-case2" type="file" accept="application/pdf" style={{ display: 'none' }} onChange={handleFileSelectedCaseTwo} disabled={addDocStatus === 'uploading'} />
+
+        {addDocStatus === 'uploading' && <p className="text-muted" style={{ marginTop: '0.5rem' }}>Envoi du document en cours...</p>}
+        {addDocStatus === 'done' && <p style={{ color: '#059669', marginTop: '0.5rem', fontSize: '0.875rem' }}>✓ Document ajouté avec succès au marché.</p>}
+        {addDocStatus === 'error' && <p style={{ color: '#dc2626', marginTop: '0.5rem', fontSize: '0.875rem' }}>{addDocError}</p>}
+
+        <div className="modal-footer">
+          <button type="button" className="btn btn-primary" onClick={closeAddDocument}>
+            {addDocStatus === 'done' ? 'Fermer' : 'Annuler'}
+          </button>
+        </div>
       </Modal>
 
       <ConfirmModal

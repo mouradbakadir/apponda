@@ -37,6 +37,10 @@ function EquipementsPage() {
     societesApi.getAll().then((res) => setSocietes(res.data || res));
   }, []);
 
+   const societesFiltrees = form.marcheId
+    ? societes.filter((s) => s.marcheId === form.marcheId)
+    : [];
+
   function marcheLabel(marcheId) {
     const m = marches.find((mm) => mm.id === marcheId);
     return m ? m.numeroMarche : 'Non assigné';
@@ -231,18 +235,25 @@ function EquipementsPage() {
             <div className="form-group w-full">
               <label className="form-label">Marché en charge</label>
               <select className="form-control" required
-                value={form.marcheId} onChange={(e) => setForm({ ...form, marcheId: e.target.value })}>
+                value={form.marcheId} onChange={(e) => setForm({ ...form, marcheId: e.target.value, societeId: '' })}>
                 <option value="">-- Sélectionner un marché --</option>
                 {marches.map((m) => <option key={m.id} value={m.id}>{m.numeroMarche}</option>)}
               </select>
             </div>
             <div className="form-group w-full">
               <label className="form-label">Prestataire en charge</label>
-              <select className="form-control" required
+              <select className="form-control" required disabled={!form.marcheId}
                 value={form.societeId} onChange={(e) => setForm({ ...form, societeId: e.target.value })}>
-                <option value="">-- Sélectionner un prestataire --</option>
-                {societes.map((s) => <option key={s.id} value={s.id}>{s.raisonSociale}</option>)}
+                <option value="">
+                  {form.marcheId ? '-- Sélectionner un prestataire --' : 'Sélectionnez d\'abord un marché'}
+                </option>
+                {societesFiltrees.map((s) => <option key={s.id} value={s.id}>{s.raisonSociale}</option>)}
               </select>
+              {form.marcheId && societesFiltrees.length === 0 && (
+                <p className="text-muted" style={{ fontSize: '0.75rem', marginTop: '0.25rem' }}>
+                  Aucune société liée à ce marché — crée-la d'abord depuis la page Sociétés.
+                </p>
+              )}
             </div>
           </div>
 

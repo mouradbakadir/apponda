@@ -42,12 +42,52 @@ services:
       NODE_ENV: production
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       REDIS_URL: redis://redis:6379
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "4000:4000"
     depends_on:
       - postgres
       - redis
+    volumes:
+      # Le worker et l'API doivent lire/écrire les MÊMES fichiers PDF stockés
+      # sur disque (storageService.js). Sans volume partagé, un PDF uploadé
+      # via l'API ne serait pas visible par le conteneur worker (systèmes de
+      # fichiers isolés par conteneur), et l'extraction échouerait avec une
+      # erreur "Fichier introuvable sur le disque" (voir storageService.js).
+      - onda_storage:/app/storage
+
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: onda_worker
+    restart: unless-stopped
+    # Le worker réutilise exactement la même image Docker que l'API (mêmes
+    # dépendances, même client Prisma généré) : seule la commande de
+    # démarrage change. Voir la note dans backend/src/worker.js sur les
+    # raisons de séparer worker et API en deux processus distincts.
+    command: ["node", "src/worker.js"]
+    env_file:
+      - ./backend/.env
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      REDIS_URL: redis://redis:6379
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - postgres
+      - redis
+    volumes:
+      - onda_storage:/app/storage
+    # Pas de "ports" ici : le worker ne sert aucune requête HTTP, il ne fait
+    # que consommer la queue Redis. L'exposer sur un port n'aurait aucun sens
+    # et ouvrirait une surface d'attaque inutile.
 
 volumes:
   onda_postgres_data:
   onda_redis_data:
+  onda_storage:

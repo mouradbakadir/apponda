@@ -9,7 +9,7 @@ import { AppError } from '../utils/AppError.js';
 // toucher au multer).
 const storage = multer.memoryStorage();
 
-const MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024; // 20 Mo (un PDF scanné avec tampons peut être lourd)
+const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024; // 50 Mo
 
 function fileFilter(req, file, cb) {
   if (file.mimetype !== 'application/pdf') {

@@ -8,11 +8,7 @@ import { PlusIcon, EditIcon, TrashIcon } from '../components/icons.jsx';
 
 const roles = ['Chef de Projet', 'Responsable Technique', 'Technicien', 'Contact Commercial'];
 
-const emptyForm = {
-  raisonSociale: '', marcheId: '', rcNumber: '', ice: '', adresse: '',
-  telephone: '', emailContact: '', emailNotification: '',
-  contactUrgenceNom: '', contactUrgenceTel: '',
-};
+const emptyForm = { raisonSociale: '', marcheId: '', telephone: '', emailContact: '' };
 
 const emptyMembre = { role: 'Chef de Projet', nom: '', email: '', telephone: '' };
 
@@ -48,14 +44,8 @@ function SocietesPage() {
     setForm({
       raisonSociale: row.raisonSociale,
       marcheId: row.marcheId,
-      rcNumber: row.rcNumber,
-      ice: row.ice,
-      adresse: row.adresse,
-      telephone: row.telephone,
-      emailContact: row.emailContact,
-      emailNotification: row.emailNotification,
-      contactUrgenceNom: row.contactUrgenceNom,
-      contactUrgenceTel: row.contactUrgenceTel,
+      telephone: row.telephone || '',
+      emailContact: row.emailContact || '',
     });
     setMembres(
       (row.membres || []).map((m) => ({ role: m.role, nom: m.nom, email: m.email, telephone: m.telephone }))
@@ -146,19 +136,27 @@ function SocietesPage() {
               <tr>
                 <th>Nom de la Société</th>
                 <th>Marché Lié</th>
+                <th>Téléphone</th>
+                <th>Email de contact</th>
                 <th>Membres de l'équipe</th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
               {items.length === 0 && (
-                <tr><td colSpan={4} className="text-center">Aucune société trouvée.</td></tr>
+                <tr><td colSpan={6} className="text-center">Aucune société trouvée.</td></tr>
               )}
               {items.map((s) => (
                 <tr key={s.id}>
                   <td style={{ fontWeight: 500, color: '#0f172a', verticalAlign: 'top' }}>{s.raisonSociale}</td>
                   <td style={{ verticalAlign: 'top' }}>
                     <span className="badge badge-info">{marcheLabel(s.marcheId)}</span>
+                  </td>
+                  <td style={{ verticalAlign: 'top', fontSize: '0.85rem', color: '#334155' }}>
+                    {s.telephone || <span className="text-muted">-</span>}
+                  </td>
+                  <td style={{ verticalAlign: 'top', fontSize: '0.85rem', color: '#334155' }}>
+                    {s.emailContact || <span className="text-muted">-</span>}
                   </td>
                   <td style={{ verticalAlign: 'top' }}>
                     {(!s.membres || s.membres.length === 0) ? (
@@ -216,53 +214,15 @@ function SocietesPage() {
 
           <div className="flex gap-4">
             <div className="form-group w-full">
-              <label className="form-label">RC</label>
-              <input type="text" className="form-control" required
-                value={form.rcNumber} onChange={(e) => setForm({ ...form, rcNumber: e.target.value })} />
-            </div>
-            <div className="form-group w-full">
-              <label className="form-label">ICE</label>
-              <input type="text" className="form-control" required
-                value={form.ice} onChange={(e) => setForm({ ...form, ice: e.target.value })} />
-            </div>
-          </div>
-
-          <div className="form-group">
-            <label className="form-label">Adresse</label>
-            <input type="text" className="form-control" required
-              value={form.adresse} onChange={(e) => setForm({ ...form, adresse: e.target.value })} />
-          </div>
-
-          <div className="flex gap-4">
-            <div className="form-group w-full">
-              <label className="form-label">Téléphone</label>
-              <input type="tel" className="form-control" required
+              <label className="form-label">Téléphone <span className="text-muted" style={{ fontWeight: 400 }}>(optionnel)</span></label>
+              <input type="tel" className="form-control"
                 value={form.telephone} onChange={(e) => setForm({ ...form, telephone: e.target.value })} />
             </div>
             <div className="form-group w-full">
-              <label className="form-label">Email de contact</label>
-              <input type="email" className="form-control" required
+              <label className="form-label">Email de contact <span className="text-muted" style={{ fontWeight: 400 }}>(optionnel)</span></label>
+              <input type="email" className="form-control"
                 value={form.emailContact} onChange={(e) => setForm({ ...form, emailContact: e.target.value })} />
             </div>
-          </div>
-
-          <div className="flex gap-4">
-            <div className="form-group w-full">
-              <label className="form-label">Email de notification</label>
-              <input type="email" className="form-control" required
-                value={form.emailNotification} onChange={(e) => setForm({ ...form, emailNotification: e.target.value })} />
-            </div>
-            <div className="form-group w-full">
-              <label className="form-label">Contact urgence (nom)</label>
-              <input type="text" className="form-control" required
-                value={form.contactUrgenceNom} onChange={(e) => setForm({ ...form, contactUrgenceNom: e.target.value })} />
-            </div>
-          </div>
-
-          <div className="form-group">
-            <label className="form-label">Contact urgence (téléphone)</label>
-            <input type="tel" className="form-control" required
-              value={form.contactUrgenceTel} onChange={(e) => setForm({ ...form, contactUrgenceTel: e.target.value })} />
           </div>
 
           <div className="flex justify-between items-center mt-6 mb-4">

@@ -4,8 +4,9 @@ import { prisma } from '../config/prisma.js';
 import { readFile } from '../services/storageService.js';
 import { extractDocument } from '../services/extractionService.js';
 import { logger } from '../utils/logger.js';
+import { aiService } from '../ai/index.js';
 
-const CONCURRENCY = 2;
+const CONCURRENCY = aiService.recommendedConcurrency > 1 ? 2 : 1;
 
 async function processExtractionJob(job) {
   const { documentId } = job.data;
@@ -16,8 +17,6 @@ async function processExtractionJob(job) {
     throw new Error(`Document ${documentId} introuvable en base (a-t-il été supprimé ?)`);
   }
 
-  // On récupère l'aéroport AVANT toute extraction -- c'est le contexte de
-  // vérité (issu de tenantScope à l'upload), jamais déduit du contenu PDF.
   const airport = await prisma.airport.findUnique({ where: { id: document.airportId } });
   if (!airport) {
     throw new Error(`Aéroport ${document.airportId} introuvable (données incohérentes)`);
@@ -30,22 +29,36 @@ async function processExtractionJob(job) {
 
   try {
     const buffer = await readFile(document.fileName, document.airportId);
+    const isPdf = buffer.subarray(0, 5).toString('ascii') === '%PDF-';
+    if (!isPdf) {
+      throw new Error("Le fichier stocké ne commence pas par la signature PDF attendue ('%PDF-')");
+    }
 
     if (!document.selectedPages || document.selectedPages.length === 0) {
       throw new Error('Aucune page sélectionnée pour ce document (selectedPages vide)');
     }
 
-    const { extractedJson, confidenceScore, rawTextLength, airportMentioned } = await extractDocument(
+    const { extractedJson, confidenceScore, rawTextLength, airportMentioned, pagesActuallyUsed } = await extractDocument(
       buffer,
       document.selectedPages,
-      { nom: airport.nom, ville: airport.ville }
+      { nom: airport.nom, ville: airport.ville },
+      {
+        documentId: document.id,
+        selectedPagesAuto: document.selectedPagesAuto,
+        partialPages: document.partialPages || {},
+      }
     );
 
-    logger.info(`👷 [extraction-worker] Extraction terminée : confiance ${confidenceScore}%, aéroport mentionné : ${airportMentioned}`);
+    logger.info(`👷 [extraction-worker] Extraction terminée : confiance ${confidenceScore}%, aéroport mentionné : ${airportMentioned}, pages réellement utilisées : ${pagesActuallyUsed.join(',')}`);
 
     await prisma.marcheDocument.update({
       where: { id: documentId },
-      data: { statut: 'EXTRAIT', extractedJson, confidenceScore },
+      data: {
+        statut: 'EXTRAIT',
+        extractedJson,
+        confidenceScore,
+        airportMismatch: !airportMentioned,
+      },
     });
 
     return extractedJson;

@@ -1,6 +1,6 @@
 import { prisma } from '../config/prisma.js';
 import { AppError } from '../utils/AppError.js';
-import { callOllamaText } from './ollamaService.js';
+import { aiService } from '../ai/index.js';
 import { buildEmailPrompt } from '../prompts/emailGeneration.prompts.js';
 import { logger } from '../utils/logger.js';
 
@@ -36,7 +36,7 @@ export async function generateEmail(reclamationId, tenantFilter, { type, urgence
   const prompt = buildEmailPrompt(type, urgence, factualData, contexteLibre || null, signataire || null, fonction || null);
 
   logger.info(`✉️  [email-generation] Type ${type} (urgence ${urgence}) pour la réclamation ${reclamationId}`);
-  const result = await callOllamaText(prompt);
+  const result = await aiService.structureText(prompt);
 
   if (!result.objet || !result.corps) {
     throw new AppError(502, "L'IA n'a pas retourné un email exploitable", 'AI_GENERATION_FAILED');

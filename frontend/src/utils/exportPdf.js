@@ -4,7 +4,7 @@ import autoTable from 'jspdf-autotable';
 export function exportKpiToPdf(kpi) {
   const doc = new jsPDF();
   doc.setFontSize(16);
-  doc.text('Rapport KPI — Antigravity ONDA', 14, 20);
+  doc.text('Rapport KPI — Amnt ONDA', 14, 20);
   doc.setFontSize(11);
   doc.text(`Marché : ${kpi.marche.numeroMarche} — ${kpi.marche.objet}`, 14, 30);
   doc.text(`Période : ${kpi.periode.dateDebut} au ${kpi.periode.dateFin}`, 14, 37);

@@ -7,17 +7,26 @@ const membreSchema = z.object({
   telephone: z.string().min(1),
 });
 
+// Convertit une chaîne vide "" en null (PAS undefined) -- Prisma traite
+// `undefined` comme "champ non fourni, ne pas y toucher" et `null` comme
+// "effacer la valeur en base". Comme le formulaire envoie toujours "" (et
+// jamais undefined) quand l'utilisateur vide un champ, il faut null ici
+// pour que la suppression du contenu soit réellement appliquée en
+// modification, pas juste ignorée silencieusement.
+const optionalTelephone = z.preprocess(
+  (val) => (val === '' ? null : val),
+  z.string().min(1).nullable().optional()
+);
+const optionalEmail = z.preprocess(
+  (val) => (val === '' ? null : val),
+  z.string().email().nullable().optional()
+);
+
 export const createSocieteSchema = z.object({
   marcheId: z.string().uuid(),
   raisonSociale: z.string().min(1),
-  rcNumber: z.string().min(1),
-  ice: z.string().min(1),
-  adresse: z.string().min(1),
-  telephone: z.string().min(1),
-  emailContact: z.string().email(),
-  emailNotification: z.string().email(),
-  contactUrgenceNom: z.string().min(1),
-  contactUrgenceTel: z.string().min(1),
+  telephone: optionalTelephone,
+  emailContact: optionalEmail,
   membres: z.array(membreSchema).optional().default([]),
 });
 
