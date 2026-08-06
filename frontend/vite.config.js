@@ -5,4 +5,8 @@ import tailwindcss from '@tailwindcss/vite';
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: { port: 5173 },
+  preview: {
+    host: '0.0.0.0',
+    allowedHosts: ['amnt-onda-production.up.railway.app'],
+  },
 });
