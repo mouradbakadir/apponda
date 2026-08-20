@@ -13,13 +13,7 @@ const transporter = nodemailer.createTransport({
   family: 4,
   connectionTimeout: 10_000,
 });
-  // Force la résolution en IPv4 -- le réseau sortant de certains hébergeurs
-  // cloud (dont Railway) ne route pas correctement l'IPv6 vers l'extérieur,
-  // ce qui provoque un blocage de ~2 minutes puis une erreur ENETUNREACH
-  // sur les adresses IPv6 renvoyées par la résolution DNS de Gmail.
-  family: 4,
-  connectionTimeout: 10_000, // 10s max pour établir la connexion, au lieu d'attendre indéfiniment
-});
+ 
 
 export async function sendEmail({ destinataire, objet, corps }) {
   if (!destinataire || !objet || !corps) {
