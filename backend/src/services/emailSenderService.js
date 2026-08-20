@@ -4,12 +4,15 @@ import { logger } from '../utils/logger.js';
 
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
-  port: Number(process.env.SMTP_PORT || 587),
-  secure: false,
+  port: 465,
+  secure: true, // true pour le port 465, false pour 587
   auth: {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
   },
+  family: 4,
+  connectionTimeout: 10_000,
+});
   // Force la résolution en IPv4 -- le réseau sortant de certains hébergeurs
   // cloud (dont Railway) ne route pas correctement l'IPv6 vers l'extérieur,
   // ce qui provoque un blocage de ~2 minutes puis une erreur ENETUNREACH
