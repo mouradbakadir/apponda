@@ -2,6 +2,8 @@ import { prisma } from '../config/prisma.js';
 import { AppError } from '../utils/AppError.js';
 
 import { paginate } from '../utils/paginate.js';
+import { deleteFile } from './storageService.js';
+import { logger } from '../utils/logger.js';
 
 export async function getAll(tenantFilter, query = {}) {
   const { page = 1, limit = 10, statut } = query;
@@ -112,6 +114,41 @@ export async function update(id, data, tenantFilter) {
 }
 
 export async function remove(id, tenantFilter) {
-  await getById(id, tenantFilter); // vérifie existence + appartenance au tenant
-  return prisma.marche.delete({ where: { id } });
+  const marche = await getById(id, tenantFilter); // vérifie existence + appartenance au tenant
+
+  const equipements = await prisma.equipement.findMany({ where: { marcheId: id }, select: { id: true } });
+  const equipementIds = equipements.map((e) => e.id);
+
+  const societes = await prisma.societe.findMany({ where: { marcheId: id }, select: { id: true } });
+  const societeIds = societes.map((s) => s.id);
+
+  const pannes = await prisma.panne.findMany({ where: { equipementId: { in: equipementIds } }, select: { id: true } });
+  const panneIds = pannes.map((p) => p.id);
+
+  // Récupéré AVANT suppression, pour pouvoir nettoyer les fichiers physiques après coup
+  const documents = await prisma.marcheDocument.findMany({ where: { marcheId: id } });
+
+  // Suppression en cascade, atomique : soit tout réussit, soit rien n'est modifié
+  await prisma.$transaction([
+    prisma.reclamation.deleteMany({ where: { panneId: { in: panneIds } } }),
+    prisma.panne.deleteMany({ where: { equipementId: { in: equipementIds } } }),
+    prisma.interventionPreventive.deleteMany({ where: { equipementId: { in: equipementIds } } }),
+    prisma.preventifVisite.deleteMany({ where: { societeId: { in: societeIds } } }),
+    prisma.societeMembre.deleteMany({ where: { societeId: { in: societeIds } } }),
+    prisma.sloConfig.deleteMany({ where: { marcheId: id } }),
+    prisma.equipement.deleteMany({ where: { marcheId: id } }),
+    prisma.societe.deleteMany({ where: { marcheId: id } }),
+    prisma.marcheDocument.deleteMany({ where: { marcheId: id } }),
+    prisma.marche.delete({ where: { id } }),
+  ]);
+
+  // Nettoyage des fichiers PDF sur disque -- hors transaction (I/O disque, pas SQL),
+  // en best-effort : un échec ici n'annule jamais la suppression déjà confirmée en base.
+  for (const doc of documents) {
+    await deleteFile(doc.fileName, doc.airportId).catch((err) => {
+      logger.warn(`⚠️  [marches] Échec suppression fichier ${doc.fileName} lors de la suppression du marché : ${err.message}`);
+    });
+  }
+
+  return marche;
 }

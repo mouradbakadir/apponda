@@ -555,10 +555,10 @@ function MarchesPage() {
         onCancel={() => setConfirmTarget(null)}
         onConfirm={confirmTarget?.type === 'all' ? confirmDeleteAll : confirmDeleteOne}
         title={confirmTarget?.type === 'all' ? 'Confirmer la suppression globale' : 'Confirmer la suppression'}
-        message={
+         message={
           confirmTarget?.type === 'all'
-            ? 'Êtes-vous sûr de vouloir supprimer tous les marchés ? Cette action est irréversible.'
-            : 'Êtes-vous sûr de vouloir supprimer cet élément ?'
+            ? 'Êtes-vous sûr de vouloir supprimer tous les marchés ? Cette action supprime aussi définitivement leurs équipements, sociétés, pannes, réclamations et documents. Cette action est irréversible.'
+            : 'Êtes-vous sûr de vouloir supprimer ce marché ? Cette action supprime aussi définitivement ses équipements, sociétés, pannes, réclamations et documents associés.'
         }
         confirmLabel={confirmTarget?.type === 'all' ? 'Supprimer tout' : 'Supprimer'}
       />
