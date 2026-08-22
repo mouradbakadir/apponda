@@ -29,5 +29,4 @@ router.use('/preventif-visites', preventifVisitesRoutes);
 router.use('/airports', airportsRoutes);
 router.use('/slo', sloRoutes);
 router.use('/dashboard', dashboardRoutes);
-
-export default router;router.use('/slo', sloRoutes);
+export default router;
