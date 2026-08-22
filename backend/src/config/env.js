@@ -24,7 +24,7 @@ if (process.env.JWT_REFRESH_SECRET.length < 32) {
 // ne démarre, plutôt que de découvrir une variable manquante au milieu d'une
 // extraction en cours.
 const aiProvider = process.env.AI_PROVIDER || 'ollama';
-const validProviders = ['ollama', 'gemini', 'groq'];
+const validProviders = ['ollama', 'gemini', 'groq', 'openrouter'];
 
 if (!validProviders.includes(aiProvider)) {
   throw new Error(`❌ AI_PROVIDER invalide : "${aiProvider}" (valeurs acceptées : ${validProviders.join(', ')})`);
@@ -41,6 +41,10 @@ if (aiProvider === 'gemini') {
 
 if (aiProvider === 'groq' && !process.env.GROQ_API_KEY && !process.env.GEMINI_API_KEY) {
   throw new Error(`❌ AI_PROVIDER=groq nécessite la variable d'environnement : GROQ_API_KEY`);
+}
+
+if (aiProvider === 'openrouter' && !process.env.OPENROUTER_API_KEY && !process.env.GEMINI_API_KEY) {
+  throw new Error(`❌ AI_PROVIDER=openrouter nécessite la variable d'environnement : OPENROUTER_API_KEY`);
 }
 
 if (aiProvider === 'ollama' && !process.env.OLLAMA_BASE_URL) {
@@ -71,6 +75,11 @@ export const env = {
       apiKey: process.env.GROQ_API_KEY || process.env.GEMINI_API_KEY,
       textModel: process.env.GROQ_TEXT_MODEL || 'qwen/qwen3.6-27b',
       visionModel: process.env.GROQ_VISION_MODEL || 'qwen/qwen3.6-27b',
+    },
+    openrouter: {
+      apiKey: process.env.OPENROUTER_API_KEY || process.env.GEMINI_API_KEY,
+      textModel: process.env.OPENROUTER_TEXT_MODEL || 'openrouter/free',
+      visionModel: process.env.OPENROUTER_VISION_MODEL || 'openrouter/free',
     },
   },
 };
