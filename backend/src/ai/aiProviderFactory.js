@@ -1,9 +1,11 @@
 import { ollamaProvider } from './providers/ollama.provider.js';
 import { geminiProvider } from './providers/gemini.provider.js';
+import { groqProvider } from './providers/groq.provider.js';
 
 const providers = {
   ollama: ollamaProvider,
   gemini: geminiProvider,
+  groq: groqProvider,
 };
 
 /**

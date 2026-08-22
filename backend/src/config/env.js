@@ -24,7 +24,7 @@ if (process.env.JWT_REFRESH_SECRET.length < 32) {
 // ne démarre, plutôt que de découvrir une variable manquante au milieu d'une
 // extraction en cours.
 const aiProvider = process.env.AI_PROVIDER || 'ollama';
-const validProviders = ['ollama', 'gemini'];
+const validProviders = ['ollama', 'gemini', 'groq'];
 
 if (!validProviders.includes(aiProvider)) {
   throw new Error(`❌ AI_PROVIDER invalide : "${aiProvider}" (valeurs acceptées : ${validProviders.join(', ')})`);
@@ -37,6 +37,10 @@ if (aiProvider === 'gemini') {
       throw new Error(`❌ AI_PROVIDER=gemini nécessite la variable d'environnement : ${key}`);
     }
   }
+}
+
+if (aiProvider === 'groq' && !process.env.GROQ_API_KEY && !process.env.GEMINI_API_KEY) {
+  throw new Error(`❌ AI_PROVIDER=groq nécessite la variable d'environnement : GROQ_API_KEY`);
 }
 
 if (aiProvider === 'ollama' && !process.env.OLLAMA_BASE_URL) {
@@ -62,6 +66,11 @@ export const env = {
       visionModel: process.env.GEMINI_VISION_MODEL,
       textModel: process.env.GEMINI_TEXT_MODEL,
       embeddingModel: process.env.GEMINI_EMBEDDING_MODEL,
+    },
+    groq: {
+      apiKey: process.env.GROQ_API_KEY || process.env.GEMINI_API_KEY,
+      textModel: process.env.GROQ_TEXT_MODEL || 'qwen/qwen3.6-27b',
+      visionModel: process.env.GROQ_VISION_MODEL || 'qwen/qwen3.6-27b',
     },
   },
 };
