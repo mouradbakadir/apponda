@@ -14,7 +14,20 @@ import { redis } from './config/redis.js';
 export const app = express();
 
 app.use(helmet());
-app.use(cors({ origin: env.frontendUrl }));
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true);
+    if (
+      origin === env.frontendUrl ||
+      origin.endsWith('.railway.app') ||
+      origin.includes('localhost')
+    ) {
+      return callback(null, true);
+    }
+    return callback(null, true);
+  },
+  credentials: true
+}));
 app.use(express.json());
 // Remplace app.use(morgan('dev')) si tu l'avais par :
 app.use(pinoHttp({
