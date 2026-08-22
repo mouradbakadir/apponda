@@ -4,6 +4,7 @@ import { logger } from './utils/logger.js';
 import { prisma } from './config/prisma.js';
 import { redis } from './config/redis.js';
 import './jobs/pdfWorker.js';
+import { extractionWorker } from './jobs/extraction.worker.js';
 
 const server = app.listen(env.port, () => {
   logger.info(`🚀 API ONDA démarrée en mode ${process.env.NODE_ENV} sur le port ${env.port}`);
@@ -16,6 +17,10 @@ const gracefulShutdown = async (signal) => {
   server.close(async () => {
     logger.info('✅ Toutes les requêtes HTTP en cours sont terminées.');
     
+    try {
+      await extractionWorker.close();
+    } catch (_) {}
+
     // Fermer proprement la Base de données et le Cache
     await prisma.$disconnect();
     logger.info('✅ Déconnexion de PostgreSQL réussie.');
