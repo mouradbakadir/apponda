@@ -1,7 +1,16 @@
 import axios from 'axios';
 
+const getApiUrl = () => {
+  if (typeof window !== 'undefined' && window.location.hostname.includes('railway.app')) {
+    return 'https://apponda-production.up.railway.app/api';
+  }
+  return import.meta.env.VITE_API_URL || 'http://localhost:4000/api';
+};
+
+export const API_BASE_URL = getApiUrl();
+
 export const apiClient = axios.create({
-  baseURL: import.meta.env.VITE_API_URL,
+  baseURL: API_BASE_URL,
 });
 
 apiClient.interceptors.request.use((config) => {
@@ -58,7 +67,7 @@ apiClient.interceptors.response.use(
 
       isRefreshing = true;
       try {
-        const { data } = await axios.post(`${import.meta.env.VITE_API_URL}/auth/refresh`, { refreshToken });
+        const { data } = await axios.post(`${API_BASE_URL}/auth/refresh`, { refreshToken });
         localStorage.setItem('accessToken', data.accessToken);
         localStorage.setItem('refreshToken', data.refreshToken);
         isRefreshing = false;
