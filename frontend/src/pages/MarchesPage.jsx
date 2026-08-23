@@ -347,6 +347,20 @@ function MarchesPage() {
                               {m.documents[0].originalName}
                             </div>
                             <div style={{ fontSize: '0.6875rem', color: '#94a3b8' }}>{formatFileSize(m.documents[0].sizeBytes)}</div>
+                            {/* Le statut porte sur l'ANALYSE IA, pas sur le fichier :
+                                un document en échec reste stocké, lisible et
+                                téléchargeable. Le dire explicitement évite de
+                                laisser croire que le PDF a été perdu. */}
+                            {m.documents[0].statut === 'ECHEC' && (
+                              <div style={{ fontSize: '0.6875rem', color: '#dc2626', fontWeight: 600 }} title="Le fichier est bien enregistré : seule l'extraction automatique a échoué.">
+                                ⚠ Extraction échouée
+                              </div>
+                            )}
+                            {(m.documents[0].statut === 'EN_ATTENTE' || m.documents[0].statut === 'EN_COURS') && (
+                              <div style={{ fontSize: '0.6875rem', color: '#0284c7', fontWeight: 600 }}>
+                                Extraction en cours...
+                              </div>
+                            )}
                           </div>
                           <button type="button" title="Lire le document" onClick={() => setPdfViewerTarget({ id: m.documents[0].id, name: m.documents[0].originalName })} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', padding: '0.125rem', flexShrink: 0 }}>
                             <EyeIcon size={16} />
