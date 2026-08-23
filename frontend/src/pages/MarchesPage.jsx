@@ -49,7 +49,7 @@ function MarchesPage() {
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [formError, setFormError] = useState('');
-  const [confirmTarget, setConfirmTarget] = useState(null); // { type: 'one'|'all', row? }
+  const [confirmTarget, setConfirmTarget] = useState(null); // { type: 'one'|'all'|'document', row?, document? }
   // Document affiché dans le lecteur PDF intégré : { id, name } | null
   const [pdfViewerTarget, setPdfViewerTarget] = useState(null);
 
@@ -248,6 +248,20 @@ function MarchesPage() {
     }
   }
 
+  // Supprime UNIQUEMENT le PDF. Le marché et tout ce qui lui est rattaché
+  // (équipements, pannes, réclamations) sont conservés : c'est précisément
+  // ce qui manquait pour pouvoir remplacer un contrat par un autre.
+  async function confirmDeleteDocument() {
+    const doc = confirmTarget.document;
+    setConfirmTarget(null);
+    try {
+      await marcheDocumentsApi.remove(doc.id);
+      await refetch();
+    } catch (err) {
+      alert(err.response?.data?.error?.message || 'Erreur lors de la suppression du document');
+    }
+  }
+
   async function confirmDeleteAll() {
     setConfirmTarget(null);
     try {
@@ -369,6 +383,9 @@ function MarchesPage() {
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
                             </svg>
+                          </button>
+                          <button type="button" title="Supprimer le document" onClick={() => setConfirmTarget({ type: 'document', document: m.documents[0] })} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626', padding: '0.125rem', flexShrink: 0 }}>
+                            <TrashIcon size={16} />
                           </button>
                           <button type="button" title="Remplacer le document" onClick={() => openAddDocument(m)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', padding: '0.125rem', flexShrink: 0 }}>
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -593,12 +610,22 @@ function MarchesPage() {
       <ConfirmModal
         open={!!confirmTarget}
         onCancel={() => setConfirmTarget(null)}
-        onConfirm={confirmTarget?.type === 'all' ? confirmDeleteAll : confirmDeleteOne}
-        title={confirmTarget?.type === 'all' ? 'Confirmer la suppression globale' : 'Confirmer la suppression'}
+        onConfirm={
+          confirmTarget?.type === 'all' ? confirmDeleteAll
+            : confirmTarget?.type === 'document' ? confirmDeleteDocument
+            : confirmDeleteOne
+        }
+        title={
+          confirmTarget?.type === 'all' ? 'Confirmer la suppression globale'
+            : confirmTarget?.type === 'document' ? 'Supprimer le document'
+            : 'Confirmer la suppression'
+        }
          message={
           confirmTarget?.type === 'all'
             ? 'Êtes-vous sûr de vouloir supprimer tous les marchés ? Cette action supprime aussi définitivement leurs équipements, sociétés, pannes, réclamations et documents. Cette action est irréversible.'
-            : 'Êtes-vous sûr de vouloir supprimer ce marché ? Cette action supprime aussi définitivement ses équipements, sociétés, pannes, réclamations et documents associés.'
+            : confirmTarget?.type === 'document'
+              ? `Supprimer le fichier « ${confirmTarget.document?.originalName} » ? Le marché et toutes ses données sont conservés : seul le PDF est retiré, vous pourrez en déposer un autre ensuite.`
+              : 'Êtes-vous sûr de vouloir supprimer ce marché ? Cette action supprime aussi définitivement ses équipements, sociétés, pannes, réclamations et documents associés.'
         }
         confirmLabel={confirmTarget?.type === 'all' ? 'Supprimer tout' : 'Supprimer'}
       />

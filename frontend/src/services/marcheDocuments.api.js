@@ -74,5 +74,8 @@ export const marcheDocumentsApi = {
       .then((r) => r.data);
   },
 
+  /** Supprime le document seul. Le marché qui le portait est conservé. */
+  remove: (id) => apiClient.delete(`/marche-documents/${id}`).then((r) => r.data),
+
   triggerExtraction: (id) => apiClient.post(`/marche-documents/${id}/extract`).then((r) => r.data),
 };
