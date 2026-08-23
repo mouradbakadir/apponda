@@ -39,7 +39,7 @@ async function resolveDocumentAirportId({ marcheId, airportId }, user, tenantFil
 export async function uploadDocument({ buffer, originalName, mimeType, marcheId, airportId, selectedPages, autoExtract = true }, user, tenantFilter) {
   const { airportId: resolvedAirportId } = await resolveDocumentAirportId({ marcheId, airportId }, user, tenantFilter);
 
-  const saved = await saveFile({ buffer, originalName, airportId: resolvedAirportId });
+  const saved = await saveFile({ buffer, originalName, mimeType, airportId: resolvedAirportId });
 
   const finalSelectedPages = selectedPages && selectedPages.length > 0
     ? selectedPages
