@@ -9,6 +9,13 @@ const getApiUrl = () => {
 
 export const API_BASE_URL = getApiUrl();
 
+// Les endpoints de liste du backend paginent avec limit = 10 par défaut.
+// Les écrans de l'app affichent la liste entière (les filtres et les exports
+// Excel/PDF travaillent sur l'ensemble), donc on demande explicitement une
+// page assez large pour tout couvrir. À remplacer par une vraie pagination
+// (page / limit + contrôles dans l'UI) quand le volume le justifiera.
+export const LIST_LIMIT = 500;
+
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
 });
