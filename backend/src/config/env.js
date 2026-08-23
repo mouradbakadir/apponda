@@ -51,12 +51,55 @@ if (aiProvider === 'ollama' && !process.env.OLLAMA_BASE_URL) {
   throw new Error(`❌ AI_PROVIDER=ollama nécessite la variable d'environnement : OLLAMA_BASE_URL`);
 }
 
+// STORAGE_DRIVER : "local" (disque du conteneur) ou "r2" (Cloudflare R2).
+//
+// Par défaut, on déduit le driver de la présence d'une configuration R2
+// complète : une installation locale sans variables R2 continue donc de
+// fonctionner exactement comme avant, sans rien changer à son .env.
+//
+// Même logique que pour AI_PROVIDER ci-dessus : si R2 est retenu, toute sa
+// configuration doit être présente AVANT le démarrage. Découvrir une clé
+// manquante au moment où un utilisateur dépose un PDF de 40 Mo, c'est perdre
+// son fichier et lui renvoyer une erreur incompréhensible.
+const r2Vars = ['R2_ACCOUNT_ID', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'R2_BUCKET'];
+const storageDriver = process.env.STORAGE_DRIVER
+  || (r2Vars.every((key) => process.env[key]) ? 'r2' : 'local');
+
+const validStorageDrivers = ['local', 'r2'];
+if (!validStorageDrivers.includes(storageDriver)) {
+  throw new Error(`❌ STORAGE_DRIVER invalide : "${storageDriver}" (valeurs acceptées : ${validStorageDrivers.join(', ')})`);
+}
+
+if (storageDriver === 'r2') {
+  for (const key of r2Vars) {
+    if (!process.env[key]) {
+      throw new Error(`❌ STORAGE_DRIVER=r2 nécessite la variable d'environnement : ${key}`);
+    }
+  }
+}
+
 export const env = {
   port: process.env.PORT,
   databaseUrl: process.env.DATABASE_URL,
   frontendUrl: process.env.FRONTEND_URL,
   jwtAccessSecret: process.env.JWT_ACCESS_SECRET,
   jwtRefreshSecret: process.env.JWT_REFRESH_SECRET,
+
+  storage: {
+    driver: storageDriver,
+    // Chemin utilisé par le driver local uniquement. Sans valeur, "storage"
+    // à la racine du backend, dossier déjà créé par le Dockerfile.
+    localPath: process.env.STORAGE_PATH || 'storage',
+    r2: {
+      accessKeyId: process.env.R2_ACCESS_KEY_ID,
+      secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
+      bucket: process.env.R2_BUCKET,
+      // R2 expose un endpoint dérivé de l'identifiant de compte. Il reste
+      // surchargeable (R2_ENDPOINT) pour viser un domaine personnalisé ou
+      // un service compatible S3 en test.
+      endpoint: process.env.R2_ENDPOINT || `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+    },
+  },
 
   // Configuration IA -- lue une seule fois ici, jamais dispersée dans les
   // providers eux-mêmes (voir bonnes pratiques Phase 1 discutées ensemble).

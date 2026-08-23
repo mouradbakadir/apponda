@@ -1,92 +1,80 @@
-import fs from 'fs/promises';
 import path from 'path';
 import { randomUUID } from 'crypto';
-import { logger } from '../utils/logger.js';
 import { AppError } from '../utils/AppError.js';
-
-// Dossier racine de stockage : "storage" à la racine du backend (déjà créé
-// avec les bonnes permissions par le Dockerfile). Configurable via
-// STORAGE_PATH si besoin (ex: pour pointer vers un volume monté ailleurs).
-const STORAGE_ROOT = path.resolve(process.env.STORAGE_PATH || 'storage');
+import { env } from '../config/env.js';
+import * as localDriver from './storage.local.js';
+import * as r2Driver from './storage.r2.js';
 
 /**
- * Construit le chemin absolu du dossier de stockage d'un aéroport,
- * et le crée s'il n'existe pas encore (isolation multi-tenant : chaque
- * aéroport a son propre sous-dossier, jamais de mélange).
+ * Façade de stockage des fichiers.
+ *
+ * Deux implémentations existent derrière cette interface :
+ *  - "local" : disque du conteneur (développement, docker-compose) ;
+ *  - "r2"    : Cloudflare R2, objet distant et persistant (production).
+ *
+ * Le driver est choisi une fois au démarrage à partir de STORAGE_DRIVER
+ * (voir config/env.js). Aucun appelant ne sait lequel est actif : tous
+ * manipulent un couple (fileName, airportId), jamais un chemin ni une clé.
+ * C'est ce qui permet de passer du disque à R2 sans migration de la base :
+ * la localisation d'un fichier est toujours recalculée à partir de ces deux
+ * valeurs, déjà stockées sur chaque MarcheDocument.
  */
-async function ensureAirportDir(airportId) {
-  const dir = path.join(STORAGE_ROOT, airportId);
-  await fs.mkdir(dir, { recursive: true });
-  return dir;
-}
+const driver = env.storage.driver === 'r2' ? r2Driver : localDriver;
 
 /**
- * Sauvegarde un fichier (buffer en mémoire, venant de multer) sur le disque.
+ * Sauvegarde un fichier (buffer en mémoire, venant de multer).
  *
  * @param {Object} params
  * @param {Buffer} params.buffer - Contenu du fichier (multer memoryStorage)
  * @param {string} params.originalName - Nom d'origine du fichier (pour l'affichage)
  * @param {string} params.airportId - Aéroport propriétaire (isolation tenant)
+ * @param {string} [params.mimeType] - Type MIME d'origine
  * @returns {Promise<{fileName: string, fullPath: string, sizeBytes: number}>}
  */
-export async function saveFile({ buffer, originalName, airportId }) {
+export async function saveFile({ buffer, originalName, airportId, mimeType }) {
   if (!airportId) {
     throw new AppError(400, "airportId manquant : impossible de stocker un fichier sans savoir à quel aéroport il appartient", 'MISSING_AIRPORT_ID');
   }
 
-  const dir = await ensureAirportDir(airportId);
-
   // Nom de fichier physique unique et sûr : on ne garde JAMAIS le nom
-  // d'origine tel quel comme nom de fichier sur disque (évite les collisions
-  // et les caractères dangereux / path traversal). Le nom d'origine reste
-  // stocké séparément en base (originalName) pour l'affichage à l'utilisateur.
+  // d'origine tel quel (évite les collisions et les caractères dangereux /
+  // path traversal). Le nom d'origine reste stocké séparément en base
+  // (originalName) pour l'affichage à l'utilisateur.
+  //
+  // Cette génération est volontairement ici, dans la façade, et non dans les
+  // drivers : la règle de nommage doit être identique quel que soit le
+  // stockage, sans quoi un basculement de driver changerait la forme des
+  // clés écrites en base.
   const ext = path.extname(originalName).toLowerCase() || '.pdf';
   const fileName = `${randomUUID()}${ext}`;
-  const fullPath = path.join(dir, fileName);
 
-  await fs.writeFile(fullPath, buffer);
-  logger.info(`📁 Fichier stocké : ${fullPath} (${buffer.length} octets)`);
-
-  return { fileName, fullPath, sizeBytes: buffer.length };
+  return driver.saveFile({ buffer, fileName, airportId, mimeType });
 }
 
 /**
- * Reconstruit le chemin absolu d'un fichier déjà stocké, à partir de son
- * nom de fichier physique et de l'aéroport propriétaire.
- * Toujours passer par cette fonction plutôt que de concaténer les chemins
- * ailleurs dans le code, pour garder un seul point de vérité.
+ * Localisation d'un fichier déjà stocké : chemin absolu avec le driver
+ * local, clé d'objet avec R2. Toujours passer par cette fonction plutôt
+ * que de reconstruire un chemin ailleurs, pour garder un seul point de
+ * vérité.
  */
 export function getFilePath(fileName, airportId) {
-  return path.join(STORAGE_ROOT, airportId, fileName);
+  return driver.getFilePath(fileName, airportId);
 }
 
 /**
  * Lit un fichier stocké et retourne son contenu en buffer
  * (utilisé par le worker d'extraction pour lire le PDF).
+ * Lève une AppError 404 si le fichier est absent, quel que soit le driver.
  */
 export async function readFile(fileName, airportId) {
-  const fullPath = getFilePath(fileName, airportId);
-  try {
-    return await fs.readFile(fullPath);
-  } catch (err) {
-    if (err.code === 'ENOENT') {
-      throw new AppError(404, 'Fichier introuvable sur le disque', 'FILE_NOT_FOUND');
-    }
-    throw err;
-  }
+  return driver.readFile(fileName, airportId);
 }
 
 /**
  * Supprime un fichier stocké (ex: en cas d'échec de traitement, ou de
- * suppression d'un document par un utilisateur). Ne lève pas d'erreur si le
- * fichier est déjà absent (idempotent).
+ * suppression d'un document par un utilisateur). Idempotent : ne lève pas
+ * d'erreur si le fichier est déjà absent.
  */
 export async function deleteFile(fileName, airportId) {
-  const fullPath = getFilePath(fileName, airportId);
-  try {
-    await fs.unlink(fullPath);
-    logger.info(`🗑️ Fichier supprimé : ${fullPath}`);
-  } catch (err) {
-    if (err.code !== 'ENOENT') throw err;
-  }
+  return driver.deleteFile(fileName, airportId);
 }
