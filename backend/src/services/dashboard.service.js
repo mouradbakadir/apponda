@@ -97,18 +97,26 @@ export async function getDashboardSummary(tenantFilter, { period, societeId, yea
     orderBy: { datePlanifiee: 'asc' },
   });
 
-  const alertes = visitesEnRetard.map((v) => ({
-    id: v.id,
-    titre: v.titre,
-    societeNom: v.societe.raisonSociale,
-    datePlanifiee: v.datePlanifiee,
-    joursRetard: Math.floor((today - new Date(v.datePlanifiee)) / (1000 * 60 * 60 * 24)),
-  }));
+  // Une intervention planifiee sur un intervalle n'est en retard qu'une fois
+  // sa date de fin depassee.
+  const alertes = visitesEnRetard
+    .filter((v) => (v.datePlanifieeFin || v.datePlanifiee) <= alertUpperBound)
+    .map((v) => ({
+      id: v.id,
+      titre: v.titre,
+      societeNom: v.societe.raisonSociale,
+      datePlanifiee: v.datePlanifiee,
+      datePlanifieeFin: v.datePlanifieeFin,
+      joursRetard: Math.floor((today - new Date(v.datePlanifieeFin || v.datePlanifiee)) / (1000 * 60 * 60 * 24)),
+    }));
 
   let compliantCount = 0;
   let nonCompliantCount = 0;
   for (const v of visitesPeriode) {
-    if (v.statut === 'REALISEE' && v.dateRealisee && v.dateRealisee <= v.datePlanifiee) {
+    // Comparaison sur les fins d'intervalle quand elles existent.
+    const finPlanifiee = v.datePlanifieeFin || v.datePlanifiee;
+    const finRealisee = v.dateRealiseeFin || v.dateRealisee;
+    if (v.statut === 'REALISEE' && finRealisee && finRealisee <= finPlanifiee) {
       compliantCount++;
     } else {
       nonCompliantCount++;

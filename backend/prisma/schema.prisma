@@ -321,7 +321,9 @@ model PreventifVisite {
   societeId      String                  @map("societe_id")
   titre          String                  @db.VarChar(255)
   datePlanifiee  DateTime                @map("date_planifiee") @db.Date
+  datePlanifieeFin DateTime?             @map("date_planifiee_fin") @db.Date
   dateRealisee   DateTime?               @map("date_realisee") @db.Date
+  dateRealiseeFin DateTime?              @map("date_realisee_fin") @db.Date
   statut         StatutVisitePreventive  @default(PLANIFIEE)
   observations   String?
   saisiParId     String?                 @map("saisi_par")

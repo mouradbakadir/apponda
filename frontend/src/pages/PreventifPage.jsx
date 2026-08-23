@@ -49,12 +49,34 @@ function AlertTriangleIcon({ size = 14, color = '#dc2626' }) {
   );
 }
 
-const emptyForm = { societeId: '', titre: '', datePlanifiee: '', dateRealisee: '', statut: 'PLANIFIEE', observations: '' };
+const emptyForm = {
+  societeId: '', titre: '',
+  datePlanifiee: '', datePlanifieeFin: '',
+  dateRealisee: '', dateRealiseeFin: '',
+  statut: 'PLANIFIEE', observations: '',
+};
 
 function formatDateFR(iso) {
   if (!iso) return '-';
   const d = new Date(iso);
   return isNaN(d) ? '-' : d.toLocaleDateString('fr-FR');
+}
+
+// Une intervention peut s'etaler sur plusieurs jours : la date de fin est
+// facultative, on n'affiche l'intervalle que lorsqu'elle est renseignee.
+function formatDateRangeFR(debut, fin) {
+  if (!debut) return '-';
+  if (!fin || fin.slice(0, 10) === debut.slice(0, 10)) return formatDateFR(debut);
+  return `${formatDateFR(debut)} → ${formatDateFR(fin)}`;
+}
+
+// Date de fin effective d'un intervalle (la date de debut s'il n'y a pas d'intervalle).
+function finPlanifiee(v) {
+  return v.datePlanifieeFin || v.datePlanifiee;
+}
+
+function finRealisee(v) {
+  return v.dateRealiseeFin || v.dateRealisee;
 }
 
 function statutBadgeClass(statut) {
@@ -87,19 +109,33 @@ function PreventifPage() {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
+  function daysBetweenTodayAnd(iso) {
+    const d = new Date(iso);
+    d.setHours(0, 0, 0, 0);
+    return Math.ceil((d - today) / (1000 * 60 * 60 * 24));
+  }
+
+  // Jours restants avant le DEBUT de l'intervention.
   function daysLeftFor(v) {
-    const planDate = new Date(v.datePlanifiee);
-    planDate.setHours(0, 0, 0, 0);
-    return Math.ceil((planDate - today) / (1000 * 60 * 60 * 24));
+    return daysBetweenTodayAnd(v.datePlanifiee);
+  }
+
+  // Jours restants avant la FIN : tant qu'elle n'est pas depassee, l'intervention
+  // n'est pas en retard (cas des interventions etalees sur plusieurs jours).
+  function daysLeftUntilEndFor(v) {
+    return daysBetweenTodayAnd(finPlanifiee(v));
   }
 
   const upcomingAlerts = items
     .filter((v) => v.statut === 'PLANIFIEE')
-    .map((v) => ({ ...v, daysLeft: daysLeftFor(v) }))
+    .map((v) => ({ ...v, daysLeft: daysLeftFor(v), daysLeftEnd: daysLeftUntilEndFor(v) }))
     .filter((v) => v.daysLeft <= 3)
     .sort((a, b) => a.daysLeft - b.daysLeft);
 
-  const filteredItems = items.filter((v) => isDateInYearPeriod(v.datePlanifiee, year, period));
+  const filteredItems = items.filter(
+    (v) => isDateInYearPeriod(v.datePlanifiee, year, period)
+      || isDateInYearPeriod(v.datePlanifieeFin, year, period)
+  );
 
   function renderTitre(v) {
     if (v.statut !== 'PLANIFIEE') {
@@ -109,11 +145,14 @@ function PreventifPage() {
     if (diffDays > 3) {
       return <span style={{ fontWeight: 500, color: '#0f172a' }}>{v.titre}</span>;
     }
-    const tooltipText = diffDays < 0
-      ? `Rappel : Intervention en retard de ${Math.abs(diffDays)} jour${Math.abs(diffDays) > 1 ? 's' : ''}`
-      : diffDays === 0
-        ? `Rappel : Intervention prévue aujourd'hui`
-        : `Rappel : Intervention prévue dans ${diffDays} jour${diffDays > 1 ? 's' : ''}`;
+    const diffEnd = daysLeftUntilEndFor(v);
+    const tooltipText = diffEnd < 0
+      ? `Rappel : Intervention en retard de ${Math.abs(diffEnd)} jour${Math.abs(diffEnd) > 1 ? 's' : ''}`
+      : diffDays < 0
+        ? `Rappel : Intervention en cours, jusqu'au ${formatDateFR(finPlanifiee(v))}`
+        : diffDays === 0
+          ? `Rappel : Intervention prévue aujourd'hui`
+          : `Rappel : Intervention prévue dans ${diffDays} jour${diffDays > 1 ? 's' : ''}`;
 
     return (
       <div className="preventif-tooltip-container" style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
@@ -128,7 +167,7 @@ function PreventifPage() {
 
   function prrBadge(v) {
     if (v.statut !== 'REALISEE') return <span className="badge badge-neutral">-</span>;
-    const isOnTime = v.dateRealisee && v.dateRealisee <= v.datePlanifiee;
+    const isOnTime = v.dateRealisee && finRealisee(v).slice(0, 10) <= finPlanifiee(v).slice(0, 10);
     return isOnTime
       ? <span className="badge badge-success">100%</span>
       : <span className="badge badge-danger">0%</span>;
@@ -147,7 +186,9 @@ function PreventifPage() {
       societeId: row.societeId,
       titre: row.titre,
       datePlanifiee: row.datePlanifiee.slice(0, 10),
+      datePlanifieeFin: row.datePlanifieeFin ? row.datePlanifieeFin.slice(0, 10) : '',
       dateRealisee: row.dateRealisee ? row.dateRealisee.slice(0, 10) : '',
+      dateRealiseeFin: row.dateRealiseeFin ? row.dateRealiseeFin.slice(0, 10) : '',
       statut: row.statut,
       observations: row.observations || '',
     });
@@ -160,7 +201,13 @@ function PreventifPage() {
     setFormError('');
     const payload = { ...form };
     if (payload.dateRealisee && payload.statut === 'PLANIFIEE') payload.statut = 'REALISEE';
-    if (!payload.dateRealisee) delete payload.dateRealisee;
+    if (!payload.dateRealisee) {
+      delete payload.dateRealisee;
+      payload.dateRealiseeFin = '';
+    }
+    // Une date de fin vide est envoyee a null pour effacer un intervalle existant.
+    payload.datePlanifieeFin = payload.datePlanifieeFin || null;
+    payload.dateRealiseeFin = payload.dateRealiseeFin || null;
     if (!payload.observations) delete payload.observations;
     try {
       if (editingId) await update(editingId, payload);
@@ -245,11 +292,13 @@ function PreventifPage() {
               </h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                 {upcomingAlerts.map((a) => {
-                  const timeDetail = a.daysLeft < 0
-                    ? ` - en retard de ${Math.abs(a.daysLeft)} jours`
-                    : a.daysLeft === 0
-                      ? ` - aujourd'hui`
-                      : ` - dans ${a.daysLeft} jour${a.daysLeft > 1 ? 's' : ''}`;
+                  const timeDetail = a.daysLeftEnd < 0
+                    ? ` - en retard de ${Math.abs(a.daysLeftEnd)} jours`
+                    : a.daysLeft < 0
+                      ? ` - en cours`
+                      : a.daysLeft === 0
+                        ? ` - aujourd'hui`
+                        : ` - dans ${a.daysLeft} jour${a.daysLeft > 1 ? 's' : ''}`;
                   return (
                     <div key={a.id} style={{
                       background: 'rgba(255, 255, 255, 0.7)', border: '1px solid rgba(252, 165, 165, 0.3)',
@@ -260,7 +309,7 @@ function PreventifPage() {
                         <AlertTriangleIcon size={16} />
                       </span>
                       <div style={{ minWidth: 0, flex: 1 }}>
-                        Rappel : L'intervention préventive par la société <strong style={{ color: '#1e293b' }}>{societeName(a.societeId)}</strong> est planifiée le <strong style={{ color: '#1e293b' }}>{formatDateFR(a.datePlanifiee)}</strong> (dans moins de 3 jours{timeDetail}).
+                        Rappel : L'intervention préventive par la société <strong style={{ color: '#1e293b' }}>{societeName(a.societeId)}</strong> est planifiée {a.datePlanifieeFin ? 'du' : 'le'} <strong style={{ color: '#1e293b' }}>{formatDateRangeFR(a.datePlanifiee, a.datePlanifieeFin).replace(' → ', ' au ')}</strong> (dans moins de 3 jours{timeDetail}).
                       </div>
                     </div>
                   );
@@ -309,8 +358,8 @@ function PreventifPage() {
                     <tr key={v.id} style={isAlertRow ? { backgroundColor: '#fdfaf2' } : {}}>
                       <td>{renderTitre(v)}</td>
                       <td>{societeName(v.societeId)}</td>
-                      <td>{formatDateFR(v.datePlanifiee)}</td>
-                      <td>{formatDateFR(v.dateRealisee)}</td>
+                      <td>{formatDateRangeFR(v.datePlanifiee, v.datePlanifieeFin)}</td>
+                      <td>{formatDateRangeFR(v.dateRealisee, v.dateRealiseeFin)}</td>
                       <td>{prrBadge(v)}</td>
                       <td><span className={`badge ${statutBadgeClass(v.statut)}`}>{v.statut}</span></td>
                       <td>
@@ -351,16 +400,38 @@ function PreventifPage() {
 
           <div className="flex gap-4">
             <div className="form-group w-full">
-              <label className="form-label">Date planifiée</label>
+              <label className="form-label">Date planifiée (début)</label>
               <input type="date" className="form-control" required
                 value={form.datePlanifiee} onChange={(e) => setForm({ ...form, datePlanifiee: e.target.value })} />
             </div>
             <div className="form-group w-full">
-              <label className="form-label">Date réalisée</label>
-              <input type="date" className="form-control"
-                value={form.dateRealisee} onChange={(e) => setForm({ ...form, dateRealisee: e.target.value })} />
+              <label className="form-label">
+                Date planifiée (fin) <span style={{ color: '#94a3b8', fontWeight: 400 }}>— facultatif</span>
+              </label>
+              <input type="date" className="form-control" min={form.datePlanifiee || undefined}
+                value={form.datePlanifieeFin} onChange={(e) => setForm({ ...form, datePlanifieeFin: e.target.value })} />
             </div>
           </div>
+
+          <div className="flex gap-4">
+            <div className="form-group w-full">
+              <label className="form-label">Date réalisée (début)</label>
+              <input type="date" className="form-control"
+                value={form.dateRealisee} onChange={(e) => setForm({ ...form, dateRealisee: e.target.value, dateRealiseeFin: e.target.value ? form.dateRealiseeFin : '' })} />
+            </div>
+            <div className="form-group w-full">
+              <label className="form-label">
+                Date réalisée (fin) <span style={{ color: '#94a3b8', fontWeight: 400 }}>— facultatif</span>
+              </label>
+              <input type="date" className="form-control" min={form.dateRealisee || undefined}
+                disabled={!form.dateRealisee}
+                value={form.dateRealiseeFin} onChange={(e) => setForm({ ...form, dateRealiseeFin: e.target.value })} />
+            </div>
+          </div>
+
+          <p style={{ color: '#64748b', fontSize: '0.8125rem', marginTop: '-0.5rem', marginBottom: '1rem' }}>
+            Laissez la date de fin vide si l'intervention se déroule sur une seule journée.
+          </p>
 
           <div className="form-group">
             <label className="form-label">Statut</label>
