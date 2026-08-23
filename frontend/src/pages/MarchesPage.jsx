@@ -417,14 +417,6 @@ function MarchesPage() {
                 <option value="RESILIE">Résilié</option>
               </select>
             </div>
-            <div className="form-group w-full">
-              <label className="form-label">Type de maintenance</label>
-              <select className="form-control" value={form.typeMaintenance} onChange={(e) => setForm({ ...form, typeMaintenance: e.target.value })}>
-                <option value="PREVENTIVE">Préventive</option>
-                <option value="CORRECTIVE">Corrective</option>
-                <option value="MIXTE">Mixte</option>
-              </select>
-            </div>
           </div>
 
           <div className="nav-section" style={{ paddingLeft: 0 }}>Niveaux de Service (SLO)</div>
