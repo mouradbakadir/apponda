@@ -310,9 +310,6 @@ function MarchesPage() {
                       <div style={{ fontWeight: 500, color: '#1e293b', maxWidth: '250px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={m.objet}>
                         {m.objet}
                       </div>
-                      <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.125rem' }}>
-                        Type : <span style={{ fontWeight: 500, color: '#475569' }}>{m.typeMaintenance}</span>
-                      </div>
                     </td>
                     <td>
                       <span style={{ display: 'inline-flex', alignItems: 'center', padding: '0.125rem 0.5rem', background: '#ecfdf5', color: '#059669', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 600 }}>
