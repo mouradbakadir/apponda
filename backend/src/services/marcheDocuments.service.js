@@ -236,6 +236,31 @@ export async function confirmMerge(documentId, champs, tenantFilter) {
 
   return prisma.marche.update({ where: { id: marche.id }, data });
 }
+/**
+ * Supprime le document d'un marché SANS toucher au marché lui-même.
+ *
+ * Répond au besoin de remplacer un contrat par un autre : jusqu'ici, le
+ * seul moyen d'enlever un PDF était de supprimer le marché entier, ce qui
+ * emportait aussi ses équipements, pannes et réclamations.
+ *
+ * getStatus applique le filtre tenant : un SUPERVISEUR ne peut pas
+ * supprimer le document d'un autre aéroport, même en devinant son UUID.
+ *
+ * L'ordre compte : le fichier est retiré du stockage AVANT la ligne en
+ * base. En cas d'échec du stockage, on interrompt -- garder une ligne qui
+ * pointe vers un fichier existant reste réparable, alors que supprimer la
+ * ligne en premier rendrait le fichier introuvable donc ineffaçable.
+ */
+export async function deleteDocument(id, tenantFilter) {
+  const document = await getStatus(id, tenantFilter);
+
+  await deleteFile(document.fileName, document.airportId);
+  await prisma.marcheDocument.delete({ where: { id: document.id } });
+
+  logger.info(`🗑️  [marcheDocuments] Document ${document.id} supprimé (marché ${document.marcheId || 'non rattaché'})`);
+  return { id: document.id };
+}
+
 export async function downloadDocument(id, tenantFilter) {
   const document = await getStatus(id, tenantFilter);
   const buffer = await readFile(document.fileName, document.airportId);

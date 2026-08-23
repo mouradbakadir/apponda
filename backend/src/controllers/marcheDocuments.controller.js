@@ -71,6 +71,15 @@ export async function downloadController(req, res, next) {
     res.send(buffer);
   } catch (err) { next(err); }
 }
+export async function deleteController(req, res, next) {
+  try {
+    await marcheDocumentsService.deleteDocument(req.params.id, req.tenantFilter);
+    // .send() et non .end() : le middleware auditLog intercepte res.send
+    // pour tracer l'action. Avec .end(), qui court-circuite res.send, la
+    // suppression ne serait jamais enregistrée dans le journal d'audit.
+    res.status(204).send();
+  } catch (err) { next(err); }
+}
 export async function triggerExtractionController(req, res, next) {
   try {
     res.json(await marcheDocumentsService.triggerExtraction(req.params.id, req.tenantFilter));

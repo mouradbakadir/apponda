@@ -36,6 +36,15 @@ router.patch(
   ctrl.attachController
 );
 
+// Supprime UNIQUEMENT le document, jamais le marché : permet de remplacer
+// un contrat sans détruire le marché et tout ce qui lui est rattaché.
+router.delete(
+  '/:id',
+  authorize('SUPER_ADMIN', 'SUPERVISEUR'),
+  auditLog('marche_documents'),
+  ctrl.deleteController
+);
+
 router.get('/:id/comparaison', ctrl.compareController);
 
 router.post(
