@@ -9,7 +9,8 @@ import Modal from '../components/Modal.jsx';
 import ConfirmModal from '../components/ConfirmModal.jsx';
 import UploadProgress from '../components/UploadProgress.jsx';
 import { minutesToHeures, heuresToMinutes, formatHeures } from '../utils/duration.js';
-import { PlusIcon, EditIcon, TrashIcon, UploadCloudIcon, MarchesIcon } from '../components/icons.jsx';
+import { PlusIcon, EditIcon, TrashIcon, UploadCloudIcon, MarchesIcon, EyeIcon } from '../components/icons.jsx';
+import PdfViewerModal from '../components/PdfViewerModal.jsx';
 
 const emptyForm = {
   airportId: '', numeroMarche: '', objet: '', typeMaintenance: 'MIXTE', statut: 'BROUILLON',
@@ -49,6 +50,8 @@ function MarchesPage() {
   const [form, setForm] = useState(emptyForm);
   const [formError, setFormError] = useState('');
   const [confirmTarget, setConfirmTarget] = useState(null); // { type: 'one'|'all', row? }
+  // Document affiché dans le lecteur PDF intégré : { id, name } | null
+  const [pdfViewerTarget, setPdfViewerTarget] = useState(null);
 
   // CAS 1 : PDF ajouté pendant la création -- extraction IA OPTIONNELLE,
   // jamais déclenchée automatiquement au dépôt du fichier.
@@ -338,6 +341,9 @@ function MarchesPage() {
                             </div>
                             <div style={{ fontSize: '0.6875rem', color: '#94a3b8' }}>{formatFileSize(m.documents[0].sizeBytes)}</div>
                           </div>
+                          <button type="button" title="Lire le document" onClick={() => setPdfViewerTarget({ id: m.documents[0].id, name: m.documents[0].originalName })} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', padding: '0.125rem', flexShrink: 0 }}>
+                            <EyeIcon size={16} />
+                          </button>
                           <button type="button" title="Télécharger" onClick={() => marcheDocumentsApi.download(m.documents[0].id, m.documents[0].originalName)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', padding: '0.125rem', flexShrink: 0 }}>
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
@@ -554,6 +560,14 @@ function MarchesPage() {
           </button>
         </div>
       </Modal>
+
+      {pdfViewerTarget && (
+        <PdfViewerModal
+          documentId={pdfViewerTarget.id}
+          filename={pdfViewerTarget.name}
+          onClose={() => setPdfViewerTarget(null)}
+        />
+      )}
 
       <ConfirmModal
         open={!!confirmTarget}
