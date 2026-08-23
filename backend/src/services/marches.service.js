@@ -22,7 +22,12 @@ export async function getAll(tenantFilter, query = {}) {
       // réessayer sans être trompé par une carte trompeuse).
       include: {
         documents: {
-          where: { statut: { not: 'ECHEC' } },
+          // Les documents dont l'extraction a échoué sont volontairement
+          // INCLUS. Les masquer donnait l'illusion que le PDF avait été
+          // supprimé : le fichier est bien stocké et consultable, seule
+          // l'analyse IA a échoué. Cacher la ligne privait en plus
+          // l'utilisateur du seul moyen de le relire ou de le remplacer.
+          // L'interface affiche le statut, à elle de le signaler.
           orderBy: { createdAt: 'desc' },
           take: 1,
           select: { id: true, originalName: true, sizeBytes: true, statut: true },
