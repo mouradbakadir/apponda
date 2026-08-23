@@ -9,9 +9,29 @@ export const marcheDocumentsApi = {
 
   confirmer: (id, champs) => apiClient.post(`/marche-documents/${id}/confirmer`, { champs }).then((r) => r.data),
 
-  download: async (id, filename) => {
+  /**
+   * Récupère le PDF et le réexpose sous forme d'URL blob locale.
+   *
+   * Le endpoint de téléchargement exige l'en-tête Authorization (ajouté par
+   * l'intercepteur d'apiClient) : on ne peut donc pas pointer une <iframe>
+   * directement sur l'URL de l'API, le navigateur n'y joindrait aucun token
+   * et recevrait un 401. On télécharge donc le binaire via axios, puis on le
+   * redonne au navigateur sous une forme qu'il sait afficher.
+   *
+   * Le type est forcé à application/pdf : le serveur renvoie un
+   * Content-Disposition "attachment", qui ferait télécharger le fichier au
+   * lieu de l'afficher. Ici c'est nous qui décidons du type du blob.
+   *
+   * L'appelant DOIT libérer l'URL avec URL.revokeObjectURL() une fois qu'il
+   * a fini, sinon le blob reste en mémoire jusqu'au rechargement de la page.
+   */
+  fetchBlobUrl: async (id) => {
     const response = await apiClient.get(`/marche-documents/${id}/download`, { responseType: 'blob' });
-    const url = window.URL.createObjectURL(new Blob([response.data]));
+    return window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
+  },
+
+  download: async (id, filename) => {
+    const url = await marcheDocumentsApi.fetchBlobUrl(id);
     const link = document.createElement('a');
     link.href = url;
     link.download = filename || 'document.pdf';
