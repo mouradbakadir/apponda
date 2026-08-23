@@ -166,24 +166,31 @@ function MarchesPage() {
     if (isSuperAdmin) payload.airportId = form.airportId;
 
     try {
+      let marcheId = editingId;
       if (editingId) {
         await update(editingId, payload);
       } else {
         const nouveauMarche = await create(payload);
-        // Si un PDF a été extrait pendant la création (bouton cliqué), on le
-        // relie maintenant au marché qui vient d'être réellement créé.
-        if (pdfExtraction.document?.id) {
-          await marcheDocumentsApi.attach(pdfExtraction.document.id, nouveauMarche.id).catch(() => {
-            // Non bloquant : le marché est créé avec succès même si le
-            // rattachement du document échoue.
-          });
-          // NOUVEAU : create() a déjà rafraîchi le tableau, mais AVANT que
-          // le document ne soit rattaché (l'attach se fait juste au-dessus,
-          // après coup). Sans ce second rafraîchissement, le tableau reste
-          // figé sur l'état "sans document" même si le rattachement a
-          // réussi en base.
-          await refetch();
-        }
+        marcheId = nouveauMarche.id;
+      }
+
+      // Un PDF déposé dans le formulaire est stocké dès le dépôt, mais sans
+      // marché (on ne connaît pas encore son id à la création). Il n'est
+      // rattaché qu'ici, une fois le marché réellement enregistré.
+      //
+      // Ce rattachement ne se faisait QUE dans la branche création. En
+      // modification, le document restait orphelin : présent en base et
+      // dans le stockage, rattaché à aucun marché, donc invisible dès le
+      // rechargement de la page -- le fichier semblait avoir disparu.
+      if (pdfExtraction.document?.id) {
+        await marcheDocumentsApi.attach(pdfExtraction.document.id, marcheId).catch(() => {
+          // Non bloquant : le marché est enregistré même si le rattachement
+          // du document échoue.
+        });
+        // create()/update() ont déjà rafraîchi le tableau, mais AVANT le
+        // rattachement. Sans ce second appel, la colonne Document resterait
+        // vide alors que le rattachement a réussi en base.
+        await refetch();
       }
       setModalOpen(false);
     } catch (err) {
