@@ -8,7 +8,7 @@ import { useAirport } from '../context/AirportContext.jsx';
 import Modal from '../components/Modal.jsx';
 import ConfirmModal from '../components/ConfirmModal.jsx';
 import UploadProgress from '../components/UploadProgress.jsx';
-import { minutesToHeures, heuresToMinutes, formatDuree } from '../utils/duration.js';
+import { minutesToHeures, heuresToMinutes, formatHeures } from '../utils/duration.js';
 import { PlusIcon, EditIcon, TrashIcon, UploadCloudIcon, MarchesIcon } from '../components/icons.jsx';
 
 const emptyForm = {
@@ -326,7 +326,7 @@ function MarchesPage() {
                     </td>
                     <td>
                       <span style={{ display: 'inline-flex', alignItems: 'center', padding: '0.125rem 0.5rem', background: '#f5f3ff', color: '#7c3aed', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 600 }}>
-                        {formatDuree(m.slaMrt)}
+                        {formatHeures(m.slaMrt)}
                       </span>
                     </td>
                     <td>

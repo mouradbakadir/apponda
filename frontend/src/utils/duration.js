@@ -30,3 +30,16 @@ export function formatDuree(minutes) {
   const m = Math.round(minutes % 60);
   return h > 0 ? `${h}h ${m}min` : `${m}min`;
 }
+
+/**
+ * Minutes -> "7 h" / "7,5 h", pour les SEUILS contractuels.
+ *
+ * Contrairement à formatDuree (utilisée pour les durées mesurées, où la
+ * minute compte), un seuil de marché est presque toujours un nombre rond
+ * d'heures : "7h 0min" y serait du bruit. Le séparateur décimal est la
+ * virgule, comme partout ailleurs en français.
+ */
+export function formatHeures(minutes) {
+  if (minutes === null || minutes === undefined || isNaN(minutes)) return '—';
+  return `${String(minutesToHeures(minutes)).replace('.', ',')} h`;
+}

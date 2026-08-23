@@ -1,6 +1,6 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { formatDuree } from './duration.js';
+import { formatDuree, formatHeures } from './duration.js';
 
 export function exportKpiToPdf(kpi) {
   const doc = new jsPDF();
@@ -16,7 +16,7 @@ export function exportKpiToPdf(kpi) {
     body: [
       ['PRR', `${kpi.kpi.prr.valeur ?? '—'}%`, `${kpi.kpi.prr.seuil}%`, kpi.kpi.prr.conforme ? 'Oui' : 'Non'],
       ['Disponibilité', `${kpi.kpi.disponibilite.valeur ?? '—'}%`, `${kpi.kpi.disponibilite.seuil}%`, kpi.kpi.disponibilite.conforme ? 'Oui' : 'Non'],
-      ['MRT', formatDuree(kpi.kpi.mrt.valeur), formatDuree(kpi.kpi.mrt.seuil), kpi.kpi.mrt.conforme ? 'Oui' : 'Non'],
+      ['MRT', formatDuree(kpi.kpi.mrt.valeur), formatHeures(kpi.kpi.mrt.seuil), kpi.kpi.mrt.conforme ? 'Oui' : 'Non'],
     ],
   });
 
