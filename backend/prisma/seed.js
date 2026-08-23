@@ -192,6 +192,36 @@ async function main() {
     },
   });
 
+  // Comptes de l'aéroport de Guelmim (GLN). Le `update: {}` est volontaire,
+  // comme pour les comptes CMN : le seed est rejoué à chaque démarrage du
+  // backend (voir le script "start"), il ne doit donc jamais écraser un mot
+  // de passe qui aurait été changé en base après coup.
+  await prisma.user.upsert({
+    where: { email: 'sup.gln@onda.ma' },
+    update: {},
+    create: {
+      email: 'sup.gln@onda.ma',
+      passwordHash: passwordSup,
+      nom: 'Superviseur',
+      prenom: 'GLN',
+      role: 'SUPERVISEUR',
+      airportId: gln.id,
+    },
+  });
+
+  await prisma.user.upsert({
+    where: { email: 'tech.gln@onda.ma' },
+    update: {},
+    create: {
+      email: 'tech.gln@onda.ma',
+      passwordHash: passwordTech,
+      nom: 'Technicien',
+      prenom: 'GLN',
+      role: 'TECHNICIEN',
+      airportId: gln.id,
+    },
+  });
+
   console.log('✅ Seed terminé.');
 }
 
