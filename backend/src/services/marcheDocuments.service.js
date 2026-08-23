@@ -70,7 +70,7 @@ async function remplacerDocumentsPrecedents(marcheId, documentCourantId, tenantF
  * d'extraction. Ne fait AUCUNE extraction elle-même (c'est le rôle du worker,
  * asynchrone -- voir jobs/extraction.worker.js).
  */
-export async function uploadDocument({ buffer, originalName, mimeType, marcheId, airportId, selectedPages, autoExtract = true }, user, tenantFilter) {
+export async function uploadDocument({ buffer, originalName, mimeType, marcheId, airportId, selectedPages, autoExtract = false }, user, tenantFilter) {
   const { airportId: resolvedAirportId } = await resolveDocumentAirportId({ marcheId, airportId }, user, tenantFilter);
 
   const saved = await saveFile({ buffer, originalName, mimeType, airportId: resolvedAirportId });
@@ -103,10 +103,10 @@ export async function uploadDocument({ buffer, originalName, mimeType, marcheId,
     await remplacerDocumentsPrecedents(marcheId, document.id, tenantFilter);
   }
 
-  // CHANGEMENT : l'extraction n'est mise en file que si demandée
-  // explicitement. Un simple dépôt de fichier (autoExtract: false)
-  // sauvegarde le document immédiatement -- l'extraction IA reste une
-  // action séparée, déclenchée plus tard par triggerExtraction().
+  // L'extraction n'est PLUS automatique : autoExtract vaut false par défaut
+  // (voir le validateur), l'analyse IA ayant été retirée de l'interface.
+  // Déposer un PDF ne fait donc que l'archiver. La capacité reste en place
+  // et peut être déclenchée explicitement, via triggerExtraction().
   if (autoExtract) {
     await extractionQueue.add('extract-marche-pdf', { documentId: document.id });
     logger.info(`📤 [marcheDocuments] Document ${document.id} uploadé et mis en file d'extraction (aéroport ${resolvedAirportId})`);

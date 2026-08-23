@@ -21,7 +21,11 @@ export const uploadDocumentSchema = z.object({
 }).transform((data) => ({
   marcheId: data.marcheId || undefined,
   airportId: data.airportId || undefined,
-  autoExtract: data.autoExtract !== 'false', // true par défaut, sauf si explicitement 'false'
+  // Aucune extraction automatique : déposer un PDF ne fait que l'archiver.
+  // La valeur par défaut est passée de true à false, l'analyse IA ayant été
+  // retirée de l'interface. Le déclenchement reste possible, mais seulement
+  // de façon explicite (POST /:id/extract, ou autoExtract='true' ici).
+  autoExtract: data.autoExtract === 'true',
 }));
 
 export const confirmDocumentSchema = z.object({
