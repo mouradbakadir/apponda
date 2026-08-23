@@ -17,6 +17,10 @@ export function usePdfExtraction() {
   const [status, setStatus] = useState('idle'); // idle | uploading | polling | done | error
   const [error, setError] = useState('');
   const [progressMessage, setProgressMessage] = useState('');
+  // Progression réelle du transfert du fichier vers le serveur (0 à 100).
+  // À ne pas confondre avec progressMessage, qui décrit l'extraction IA
+  // faite APRÈS l'upload et dont la durée n'est pas mesurable en pourcentage.
+  const [uploadProgress, setUploadProgress] = useState(0);
   const pollTimerRef = useRef(null);
   const stopRef = useRef(false);
 
@@ -68,8 +72,12 @@ export function usePdfExtraction() {
     setStatus('uploading');
     setError('');
     setProgressMessage('');
+    setUploadProgress(0);
     try {
-      const created = await marcheDocumentsApi.upload(file, options);
+      const created = await marcheDocumentsApi.upload(file, {
+        ...options,
+        onProgress: setUploadProgress,
+      });
       setDocument(created);
       if (options.autoExtract === false) {
         setStatus('done'); // sauvegardé, mais pas encore extrait -- extractedJson sera null
@@ -111,7 +119,8 @@ export function usePdfExtraction() {
     setStatus('idle');
     setError('');
     setProgressMessage('');
+    setUploadProgress(0);
   }, []);
 
-  return { document, status, error, progressMessage, upload, startExtraction, reset };
+  return { document, status, error, progressMessage, uploadProgress, upload, startExtraction, reset };
 }

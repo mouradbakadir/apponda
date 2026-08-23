@@ -7,6 +7,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { useAirport } from '../context/AirportContext.jsx';
 import Modal from '../components/Modal.jsx';
 import ConfirmModal from '../components/ConfirmModal.jsx';
+import UploadProgress from '../components/UploadProgress.jsx';
 import { PlusIcon, EditIcon, TrashIcon, UploadCloudIcon, MarchesIcon } from '../components/icons.jsx';
 
 const emptyForm = {
@@ -55,6 +56,7 @@ function MarchesPage() {
   const [addDocTarget, setAddDocTarget] = useState(null); // { row } | null
   const [addDocStatus, setAddDocStatus] = useState('idle'); // idle | uploading | done | error
   const [addDocError, setAddDocError] = useState('');
+  const [addDocProgress, setAddDocProgress] = useState(0); // progression du transfert, 0 a 100
 
   function openCreate() {
     setEditingId(null);
@@ -191,12 +193,14 @@ function MarchesPage() {
     setAddDocTarget({ row });
     setAddDocStatus('idle');
     setAddDocError('');
+    setAddDocProgress(0);
   }
 
   function closeAddDocument() {
     setAddDocTarget(null);
     setAddDocStatus('idle');
     setAddDocError('');
+    setAddDocProgress(0);
   }
 
   async function handleFileSelectedCaseTwo(e) {
@@ -206,8 +210,12 @@ function MarchesPage() {
 
     setAddDocStatus('uploading');
     setAddDocError('');
+    setAddDocProgress(0);
     try {
-      await marcheDocumentsApi.upload(file, { marcheId: addDocTarget.row.id });
+      await marcheDocumentsApi.upload(file, {
+        marcheId: addDocTarget.row.id,
+        onProgress: setAddDocProgress,
+      });
       setAddDocStatus('done');
       refetch(); // NOUVEAU : le tableau doit refléter le document tout de suite
     } catch (err) {
@@ -498,7 +506,7 @@ function MarchesPage() {
                   onChange={handleFileSelected}
                 />
 
-                {pdfExtraction.status === 'uploading' && <p className="text-muted" style={{ marginTop: '0.5rem' }}>Envoi du PDF en cours...</p>}
+                {pdfExtraction.status === 'uploading' && <UploadProgress percent={pdfExtraction.uploadProgress} label="Envoi du PDF" />}
                 {pdfExtraction.status === 'polling' && <p className="text-muted" style={{ marginTop: '0.5rem' }}>{pdfExtraction.progressMessage}</p>}
                 {pdfExtraction.status === 'done' && pdfExtraction.document?.airportMismatch && (
                   <p style={{ color: '#dc2626', marginTop: '0.5rem', fontSize: '0.875rem', fontWeight: 600 }}>
@@ -531,7 +539,7 @@ function MarchesPage() {
         </label>
         <input id="pdf-upload-case2" type="file" accept="application/pdf" style={{ display: 'none' }} onChange={handleFileSelectedCaseTwo} disabled={addDocStatus === 'uploading'} />
 
-        {addDocStatus === 'uploading' && <p className="text-muted" style={{ marginTop: '0.5rem' }}>Envoi du document en cours...</p>}
+        {addDocStatus === 'uploading' && <UploadProgress percent={addDocProgress} label="Envoi du document" />}
         {addDocStatus === 'done' && <p style={{ color: '#059669', marginTop: '0.5rem', fontSize: '0.875rem' }}>✓ Document ajouté avec succès au marché.</p>}
         {addDocStatus === 'error' && <p style={{ color: '#dc2626', marginTop: '0.5rem', fontSize: '0.875rem' }}>{addDocError}</p>}
 
