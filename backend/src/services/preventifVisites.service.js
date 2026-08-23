@@ -32,7 +32,9 @@ export async function create(data, user) {
     data: {
       ...data,
       datePlanifiee: new Date(data.datePlanifiee),
+      datePlanifieeFin: data.datePlanifieeFin ? new Date(data.datePlanifieeFin) : null,
       dateRealisee: data.dateRealisee ? new Date(data.dateRealisee) : null,
+      dateRealiseeFin: data.dateRealiseeFin ? new Date(data.dateRealiseeFin) : null,
       airportId: societe.airportId,
       saisiParId: user.id,
     },
@@ -46,6 +48,10 @@ export async function update(id, data, tenantFilter) {
   const payload = { ...data };
   if (payload.datePlanifiee) payload.datePlanifiee = new Date(payload.datePlanifiee);
   if (payload.dateRealisee) payload.dateRealisee = new Date(payload.dateRealisee);
+  // Les dates de fin sont facultatives : une valeur nulle explicite les efface.
+  for (const champ of ['datePlanifieeFin', 'dateRealiseeFin']) {
+    if (champ in payload) payload[champ] = payload[champ] ? new Date(payload[champ]) : null;
+  }
 
   return prisma.preventifVisite.update({ where: { id }, data: payload });
 }

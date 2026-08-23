@@ -260,7 +260,7 @@ function DashboardPage() {
                   <div style={{ minWidth: 0, flex: 1, paddingRight: '0.5rem' }}>
                     <div style={{ fontWeight: 600, fontSize: '0.8125rem', color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.titre}</div>
                     <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.125rem' }}>
-                      Par <strong>{a.societeNom}</strong> · Prévu le {formatDateFR(a.datePlanifiee)}
+                      Par <strong>{a.societeNom}</strong> · {a.datePlanifieeFin ? 'Prévu du ' : 'Prévu le '}{formatDateFR(a.datePlanifiee)}{a.datePlanifieeFin ? ` au ${formatDateFR(a.datePlanifieeFin)}` : ''}
                     </div>
                   </div>
                   <span style={{ fontSize: '0.6875rem', fontWeight: 700, color: urgent ? '#dc2626' : '#d97706', background: urgent ? '#fee2e2' : '#fef3c7', border: `1px solid ${urgent ? '#fecaca' : '#fcd34d'}`, padding: '0.1875rem 0.5rem', borderRadius: '6px', flexShrink: 0 }}>
