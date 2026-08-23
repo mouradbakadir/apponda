@@ -117,31 +117,6 @@ function MarchesPage() {
     }
   }
 
- function handleLaunchExtraction() {
-    if (!pdfExtraction.document?.id) return;
-    pdfExtraction.startExtraction(pdfExtraction.document.id);
-  }
-
-  // Dès que l'extraction CAS 1 se termine SANS problème d'aéroport, on
-  // pré-remplit le formulaire -- l'utilisateur reste entièrement libre de
-  // tout corriger avant d'enregistrer.
-  if (pdfExtraction.status === 'done' && pdfExtraction.document?.extractedJson && !editingId) {
-    const extracted = pdfExtraction.document.extractedJson;
-    const shouldPrefill = form.numeroMarche === '' && form.objet === '' && !pdfExtraction.document.airportMismatch;
-    if (shouldPrefill) {
-      setForm((prev) => ({
-        ...prev,
-        numeroMarche: extracted.numeroMarche ?? prev.numeroMarche,
-        objet: extracted.objet ?? prev.objet,
-        typeMaintenance: extracted.typeMaintenance ?? prev.typeMaintenance,
-        slaDisponibilite: extracted.slaDisponibilite ?? prev.slaDisponibilite,
-        slaPrr: extracted.slaPrr ?? prev.slaPrr,
-        slaMrt: extracted.slaMrt != null ? minutesToHeures(extracted.slaMrt) : prev.slaMrt,
-        dateDebut: extracted.dateDebut ?? prev.dateDebut,
-        dateFin: extracted.dateFin ?? prev.dateFin,
-      }));
-    }
-  }
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -514,21 +489,6 @@ function MarchesPage() {
               <div className="nav-section" style={{ paddingLeft: 0 }}>Document du Marché (PDF) — optionnel</div>
 
               <div className="form-group">
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  style={{ marginBottom: '0.75rem' }}
-                  disabled={!pdfExtraction.document?.id || pdfExtraction.status === 'uploading' || pdfExtraction.status === 'polling'}
-                  onClick={handleLaunchExtraction}
-                >
-                   Extraire les informations via IA (optionnel)
-                </button>
-                {!pdfExtraction.document?.id && (
-                  <p className="text-muted" style={{ fontSize: '0.75rem', marginTop: '-0.5rem', marginBottom: '0.75rem' }}>
-                    Sélectionnez d'abord un fichier PDF ci-dessous pour activer ce bouton.
-                  </p>
-                )}
-
                 <label
                   htmlFor="pdf-upload-input"
                   className="pdf-dropzone"
@@ -556,14 +516,8 @@ function MarchesPage() {
                 />
 
                 {pdfExtraction.status === 'uploading' && <UploadProgress percent={pdfExtraction.uploadProgress} label="Envoi du PDF" />}
-                {pdfExtraction.status === 'polling' && <p className="text-muted" style={{ marginTop: '0.5rem' }}>{pdfExtraction.progressMessage}</p>}
-                {pdfExtraction.status === 'done' && pdfExtraction.document?.airportMismatch && (
-                  <p style={{ color: '#dc2626', marginTop: '0.5rem', fontSize: '0.875rem', fontWeight: 600 }}>
-                    ⚠️ Ce document ne semble pas concerner votre aéroport — le formulaire n'a PAS été pré-rempli automatiquement. Vérifiez que vous avez uploadé le bon marché.
-                  </p>
-                )}
-                {pdfExtraction.status === 'done' && !pdfExtraction.document?.airportMismatch && (
-                  <p style={{ color: '#059669', marginTop: '0.5rem', fontSize: '0.875rem' }}>✓ Formulaire pré-rempli à partir du PDF — vérifiez et corrigez si besoin avant d'enregistrer.</p>
+                {pdfExtraction.status === 'done' && (
+                  <p style={{ color: '#059669', marginTop: '0.5rem', fontSize: '0.875rem' }}>✓ Fichier enregistré — il sera rattaché au marché à l'enregistrement.</p>
                 )}
                 {pdfExtraction.status === 'error' && <p style={{ color: '#dc2626', marginTop: '0.5rem', fontSize: '0.875rem' }}>{pdfExtraction.error}</p>}
               </div>
