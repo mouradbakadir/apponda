@@ -8,10 +8,14 @@ import { useAirport } from '../context/AirportContext.jsx';
 import Modal from '../components/Modal.jsx';
 import ConfirmModal from '../components/ConfirmModal.jsx';
 import UploadProgress from '../components/UploadProgress.jsx';
+import { minutesToHeures, heuresToMinutes, formatHeures } from '../utils/duration.js';
 import { PlusIcon, EditIcon, TrashIcon, UploadCloudIcon, MarchesIcon } from '../components/icons.jsx';
 
 const emptyForm = {
   airportId: '', numeroMarche: '', objet: '', typeMaintenance: 'MIXTE', statut: 'BROUILLON',
+  // slaMrt est saisi en HEURES dans ce formulaire (les contrats sont
+  // redigés en heures), puis converti en minutes pour l'API au moment de
+  // l'envoi. Voir utils/duration.js.
   slaDisponibilite: '', slaPrr: '', slaMrt: '', dateDebut: '', dateFin: '',
 };
 
@@ -76,7 +80,7 @@ function MarchesPage() {
       statut: row.statut,
       slaDisponibilite: row.slaDisponibilite,
       slaPrr: row.slaPrr,
-      slaMrt: row.slaMrt,
+      slaMrt: minutesToHeures(row.slaMrt),
       dateDebut: row.dateDebut.slice(0, 10),
       dateFin: row.dateFin.slice(0, 10),
     });
@@ -129,7 +133,7 @@ function MarchesPage() {
         typeMaintenance: extracted.typeMaintenance ?? prev.typeMaintenance,
         slaDisponibilite: extracted.slaDisponibilite ?? prev.slaDisponibilite,
         slaPrr: extracted.slaPrr ?? prev.slaPrr,
-        slaMrt: extracted.slaMrt ?? prev.slaMrt,
+        slaMrt: extracted.slaMrt != null ? minutesToHeures(extracted.slaMrt) : prev.slaMrt,
         dateDebut: extracted.dateDebut ?? prev.dateDebut,
         dateFin: extracted.dateFin ?? prev.dateFin,
       }));
@@ -152,7 +156,7 @@ function MarchesPage() {
       statut: form.statut,
       slaDisponibilite: Number(form.slaDisponibilite),
       slaPrr: Number(form.slaPrr),
-      slaMrt: Number(form.slaMrt),
+      slaMrt: heuresToMinutes(form.slaMrt),
       dateDebut: form.dateDebut,
       dateFin: form.dateFin,
     };
@@ -322,7 +326,7 @@ function MarchesPage() {
                     </td>
                     <td>
                       <span style={{ display: 'inline-flex', alignItems: 'center', padding: '0.125rem 0.5rem', background: '#f5f3ff', color: '#7c3aed', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 600 }}>
-                        {m.slaMrt} min
+                        {formatHeures(m.slaMrt)}
                       </span>
                     </td>
                     <td>
@@ -441,8 +445,12 @@ function MarchesPage() {
                 value={form.slaPrr} onChange={(e) => setForm({ ...form, slaPrr: e.target.value })} />
             </div>
             <div className="form-group w-full">
-              <label className="form-label">MRT (Minutes)</label>
-              <input type="number" className="form-control" min="1" placeholder="420" required
+              <label className="form-label">MRT (Heures)</label>
+              {/* step="any" et non "0.5" : les marchés déjà enregistrés peuvent
+                  contenir un nombre de minutes qui ne tombe pas sur une
+                  demi-heure (ex: 425 min = 7,08 h). Avec un step fixe, le
+                  navigateur refuserait de soumettre ces valeurs existantes. */}
+              <input type="number" className="form-control" min="0.01" step="any" placeholder="7" required
                 value={form.slaMrt} onChange={(e) => setForm({ ...form, slaMrt: e.target.value })} />
             </div>
           </div>
