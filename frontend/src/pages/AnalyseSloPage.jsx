@@ -4,6 +4,7 @@ import { societesApi } from '../services/societes.api.js';
 import { sloApi } from '../services/slo.api.js';
 import PeriodFilter from '../components/PeriodFilter.jsx';
 import { yearOverlapsMarche } from '../utils/yearFilters.js';
+import { formatDuree } from '../utils/duration.js';
 
 function AnalyseSloPage() {
   const [marches, setMarches] = useState([]);
@@ -226,7 +227,7 @@ function AnalyseSloPage() {
                           </span>
                         </div>
                         <div className="flex justify-between items-center text-xs text-slate-500 font-mono">
-                          <span>Réel: {analysis.mrt.reelMinutes !== null ? `${analysis.mrt.reelMinutes} min` : 'N/A'}</span>
+                          <span>Réel: {analysis.mrt.reelMinutes !== null ? formatDuree(analysis.mrt.reelMinutes) : 'N/A'}</span>
                           <span>Conformité (Indice): <strong className="text-slate-800">{analysis.mrt.indice.toFixed(3)}</strong> (Coef: {analysis.config.coefMrt})</span>
                         </div>
                       </div>
