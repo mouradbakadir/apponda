@@ -31,6 +31,40 @@ async function resolveDocumentAirportId({ marcheId, airportId }, user, tenantFil
 }
 
 /**
+ * Un marché ne porte qu'UN document courant : déposer un nouveau PDF
+ * remplace le précédent. Cette fonction supprime tous les documents du
+ * marché sauf celui qu'on vient d'y rattacher, fichier de stockage compris.
+ *
+ * Elle est appelée depuis les DEUX chemins qui rattachent un document à un
+ * marché -- l'upload direct et attachToMarche. Sans cela, rattacher après
+ * coup laisserait deux documents sur le même marché, et l'interface, qui
+ * n'affiche que le premier, en montrerait un au hasard.
+ *
+ * La suppression du fichier est tolérante à l'échec : perdre le marché en
+ * base parce qu'un objet distant a déjà disparu serait pire que de laisser
+ * un fichier orphelin dans le stockage.
+ */
+async function remplacerDocumentsPrecedents(marcheId, documentCourantId, tenantFilter) {
+  const anciens = await prisma.marcheDocument.findMany({
+    where: { marcheId, ...tenantFilter, id: { not: documentCourantId } },
+  });
+
+  if (anciens.length === 0) return;
+
+  for (const ancien of anciens) {
+    await deleteFile(ancien.fileName, ancien.airportId).catch((err) => {
+      logger.warn(`⚠️  [marcheDocuments] Échec suppression fichier ${ancien.fileName} lors du remplacement : ${err.message}`);
+    });
+  }
+
+  await prisma.marcheDocument.deleteMany({
+    where: { marcheId, ...tenantFilter, id: { not: documentCourantId } },
+  });
+
+  logger.info(`🗑️  [marcheDocuments] ${anciens.length} ancien(s) document(s) remplacé(s) pour le marché ${marcheId}`);
+}
+
+/**
  * CAS 1 & CAS 2 : réception d'un PDF, sauvegarde, création de l'enregistrement
  * MarcheDocument (statut EN_ATTENTE), puis mise en file d'attente du job
  * d'extraction. Ne fait AUCUNE extraction elle-même (c'est le rôle du worker,
@@ -66,23 +100,7 @@ export async function uploadDocument({ buffer, originalName, mimeType, marcheId,
   }
 
   if (marcheId) {
-    const oldDocuments = await prisma.marcheDocument.findMany({
-      where: { marcheId, ...tenantFilter, id: { not: document.id } },
-    });
-
-    for (const oldDoc of oldDocuments) {
-      await deleteFile(oldDoc.fileName, oldDoc.airportId).catch((err) => {
-        logger.warn(`⚠️  [marcheDocuments] Échec suppression fichier ${oldDoc.fileName} lors du remplacement : ${err.message}`);
-      });
-    }
-
-    await prisma.marcheDocument.deleteMany({
-      where: { marcheId, ...tenantFilter, id: { not: document.id } },
-    });
-
-    if (oldDocuments.length > 0) {
-      logger.info(`🗑️  [marcheDocuments] ${oldDocuments.length} ancien(s) document(s) remplacé(s) pour le marché ${marcheId}`);
-    }
+    await remplacerDocumentsPrecedents(marcheId, document.id, tenantFilter);
   }
 
   // CHANGEMENT : l'extraction n'est mise en file que si demandée
@@ -121,7 +139,14 @@ export async function attachToMarche(documentId, marcheId, tenantFilter) {
   const marche = await prisma.marche.findFirst({ where: { id: marcheId, ...tenantFilter, deletedAt: null } });
   if (!marche) throw new AppError(400, 'Marché invalide pour cet aéroport', 'INVALID_REFERENCE');
 
-  return prisma.marcheDocument.update({ where: { id: document.id }, data: { marcheId } });
+  const rattache = await prisma.marcheDocument.update({ where: { id: document.id }, data: { marcheId } });
+
+  // Même invariant que pour l'upload direct : un seul document courant par
+  // marché. Sans cette ligne, modifier un marché en y déposant un PDF
+  // laissait l'ancien document en place à côté du nouveau.
+  await remplacerDocumentsPrecedents(marcheId, rattache.id, tenantFilter);
+
+  return rattache;
 }
 
 // Champs comparés à l'écran (CAS 2). `statut` est volontairement absent :
