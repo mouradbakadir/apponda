@@ -1,7 +1,7 @@
-import { apiClient } from './apiClient.js';
+import { apiClient, LIST_LIMIT } from './apiClient.js';
 
 export const reclamationsApi = {
-  getAll: () => apiClient.get('/reclamations').then(r => r.data),
+  getAll: () => apiClient.get('/reclamations', { params: { limit: LIST_LIMIT } }).then(r => r.data),
   create: (data) => apiClient.post('/reclamations', data).then(r => r.data),
   update: (id, data) => apiClient.patch(`/reclamations/${id}`, data).then(r => r.data),
   remove: (id) => apiClient.delete(`/reclamations/${id}`),
