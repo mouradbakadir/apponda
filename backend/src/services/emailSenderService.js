@@ -65,8 +65,6 @@ export async function sendEmail({ destinataire, objet, corps }) {
     };
 
   } catch (err) {
-    if (err instanceof AppError) throw err;
-
     logger.error(
       { err },
       `❌ [email-sender] Échec de l'envoi à ${destinataire}`
