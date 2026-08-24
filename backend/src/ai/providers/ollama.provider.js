@@ -7,6 +7,14 @@ const OLLAMA_EMBEDDING_MODEL = process.env.OLLAMA_EMBEDDING_MODEL || 'nomic-embe
 
 const TIMEOUT_MS = 240_000;
 
+// Ollama n'est utilisable que si un serveur local a explicitement été
+// declaré : sans OLLAMA_BASE_URL, l'URL par défaut ci-dessus pointe vers
+// un localhost qui n'existe pas dans un conteneur de production, et chaque
+// appel finirait en erreur de connexion.
+function isConfigured() {
+  return Boolean(process.env.OLLAMA_BASE_URL);
+}
+
 async function callOllama(payload) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
@@ -116,6 +124,8 @@ async function embed(text) {
 
 /** @type {import('../AIProvider.interface.js').AIProvider} */
 export const ollamaProvider = {
+  name: 'ollama',
+  isConfigured,
   transcribeImage,
   structureText,
   embed,

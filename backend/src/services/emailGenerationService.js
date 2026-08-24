@@ -36,9 +36,19 @@ export async function generateEmail(reclamationId, tenantFilter, { type, urgence
   const prompt = buildEmailPrompt(type, urgence, factualData, contexteLibre || null, signataire || null, fonction || null);
 
   logger.info(`✉️  [email-generation] Type ${type} (urgence ${urgence}) pour la réclamation ${reclamationId}`);
-  const result = await aiService.structureText(prompt);
 
-  if (!result.objet || !result.corps) {
+  let result;
+  try {
+    result = await aiService.structureText(prompt);
+  } catch (err) {
+    // Sans ce relais, une panne du fournisseur IA ressort en "Erreur interne
+    // du serveur" côté interface : impossible pour l'utilisateur de savoir
+    // si le problème vient de sa saisie ou de la configuration IA.
+    logger.error({ err }, `❌ [email-generation] Échec de la génération pour la réclamation ${reclamationId}`);
+    throw new AppError(502, `Le service IA n'a pas pu générer l'email : ${err.message}`, 'AI_GENERATION_FAILED');
+  }
+
+  if (!result?.objet || !result?.corps) {
     throw new AppError(502, "L'IA n'a pas retourné un email exploitable", 'AI_GENERATION_FAILED');
   }
 

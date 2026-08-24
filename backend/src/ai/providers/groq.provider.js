@@ -4,7 +4,9 @@ const GROQ_API_BASE = 'https://api.groq.com/openai/v1';
 const TIMEOUT_MS = 60_000;
 
 function requireGroqConfig() {
-  const apiKey = process.env.GROQ_API_KEY || process.env.GEMINI_API_KEY;
+  // Pas de repli sur GEMINI_API_KEY : une clé Gemini envoyée à Groq est
+  // systématiquement rejetée, et masque la vraie cause (clé manquante).
+  const apiKey = process.env.GROQ_API_KEY;
   const textModel = process.env.GROQ_TEXT_MODEL || 'qwen/qwen3.6-27b';
   const visionModel = process.env.GROQ_VISION_MODEL || 'qwen/qwen3.6-27b';
 
@@ -12,6 +14,10 @@ function requireGroqConfig() {
     throw new Error('Configuration Groq incomplète : GROQ_API_KEY manquante');
   }
   return { apiKey, textModel, visionModel };
+}
+
+function isConfigured() {
+  return Boolean(process.env.GROQ_API_KEY);
 }
 
 async function callGroqChat(messages, options = {}) {
@@ -112,13 +118,22 @@ async function structureText(prompt, maxAttempts = 2) {
       },
     ];
 
+    // Volontairement hors du try : une erreur de transport (délai dépassé,
+    // clé invalide, modèle inexistant) ne sera pas résolue par une seconde
+    // tentative identique -- elle doit remonter tout de suite pour laisser
+    // la main au fournisseur de secours.
+    const response = await callGroqChat(messages, { jsonMode: true, temperature: 0.1 });
+
     try {
-      const response = await callGroqChat(messages, { jsonMode: true, temperature: 0.1 });
-      const parsed = JSON.parse(response);
-      return parsed;
+      return JSON.parse(response);
     } catch (err) {
       lastError = err;
       logger.warn(`⚠️  [groq] Erreur parsing JSON (tentative ${attempt}) : ${err.message}`);
+      const repaired = tryRepairJson(response);
+      if (repaired) {
+        logger.warn(`⚠️  [groq] JSON initial invalide mais réparé automatiquement (tentative ${attempt})`);
+        return repaired;
+      }
     }
   }
 
@@ -132,6 +147,8 @@ async function embed(text) {
 
 /** @type {import('../AIProvider.interface.js').AIProvider} */
 export const groqProvider = {
+  name: 'groq',
+  isConfigured,
   transcribeImage,
   structureText,
   embed,

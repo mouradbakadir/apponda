@@ -10,6 +10,18 @@ export async function sendEmail({ destinataire, objet, corps }) {
     );
   }
 
+  // Vérifié avant l'appel : sans ces variables, Brevo répond 401 et
+  // l'utilisateur reçoit un "Échec de l'envoi" qui ne dit pas que le service
+  // d'envoi n'a tout simplement jamais été configuré sur cet environnement.
+  if (!process.env.BREVO_API_KEY || !process.env.BREVO_FROM) {
+    throw new AppError(
+      503,
+      "L'envoi d'emails n'est pas configuré sur ce serveur (BREVO_API_KEY / BREVO_FROM manquantes). "
+      + 'Utilisez « Copier » pour envoyer le brouillon depuis votre messagerie.',
+      'EMAIL_SENDER_NOT_CONFIGURED'
+    );
+  }
+
   try {
     const response = await fetch(
       'https://api.brevo.com/v3/smtp/email',
@@ -53,6 +65,8 @@ export async function sendEmail({ destinataire, objet, corps }) {
     };
 
   } catch (err) {
+    if (err instanceof AppError) throw err;
+
     logger.error(
       { err },
       `❌ [email-sender] Échec de l'envoi à ${destinataire}`

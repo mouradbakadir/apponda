@@ -39,11 +39,14 @@ if (aiProvider === 'gemini') {
   }
 }
 
-if (aiProvider === 'groq' && !process.env.GROQ_API_KEY && !process.env.GEMINI_API_KEY) {
+// Chaque fournisseur exige SA propre clé : une clé Gemini presentée à Groq
+// ou OpenRouter est rejetée par leur API, et un démarrage "réussi" ferait
+// croire à tort que la configuration IA est bonne.
+if (aiProvider === 'groq' && !process.env.GROQ_API_KEY) {
   throw new Error(`❌ AI_PROVIDER=groq nécessite la variable d'environnement : GROQ_API_KEY`);
 }
 
-if (aiProvider === 'openrouter' && !process.env.OPENROUTER_API_KEY && !process.env.GEMINI_API_KEY) {
+if (aiProvider === 'openrouter' && !process.env.OPENROUTER_API_KEY) {
   throw new Error(`❌ AI_PROVIDER=openrouter nécessite la variable d'environnement : OPENROUTER_API_KEY`);
 }
 
@@ -115,14 +118,14 @@ export const env = {
       embeddingModel: process.env.GEMINI_EMBEDDING_MODEL,
     },
     groq: {
-      apiKey: process.env.GROQ_API_KEY || process.env.GEMINI_API_KEY,
+      apiKey: process.env.GROQ_API_KEY,
       textModel: process.env.GROQ_TEXT_MODEL || 'qwen/qwen3.6-27b',
       visionModel: process.env.GROQ_VISION_MODEL || 'qwen/qwen3.6-27b',
     },
     openrouter: {
-      apiKey: process.env.OPENROUTER_API_KEY || process.env.GEMINI_API_KEY,
-      textModel: process.env.OPENROUTER_TEXT_MODEL || 'openrouter/free',
-      visionModel: process.env.OPENROUTER_VISION_MODEL || 'openrouter/free',
+      apiKey: process.env.OPENROUTER_API_KEY,
+      textModel: process.env.OPENROUTER_TEXT_MODEL || 'openrouter/auto',
+      visionModel: process.env.OPENROUTER_VISION_MODEL || 'openrouter/auto',
     },
   },
 };

@@ -12,6 +12,17 @@ const emailTypes = [
   { value: 'MISE_EN_DEMEURE', label: 'Mise en demeure' },
 ];
 
+// Le message du backend est toujours le plus utile (« le service IA n'a pas
+// pu... », « l'envoi n'est pas configuré... »). Sans réponse du tout, on dit
+// explicitement que le serveur n'a pas répondu plutôt que d'afficher un échec
+// générique qui laisse croire à une erreur de saisie.
+function apiErrorMessage(err, fallback) {
+  const backendMessage = err.response?.data?.error?.message;
+  if (backendMessage) return backendMessage;
+  if (err.response) return fallback;
+  return `${fallback} Le serveur n'a pas répondu (${err.message}).`;
+}
+
 function EmailPanel({ open, onClose, reclamations, equipementLabel, societeLabel }) {
   const [selectedRecId, setSelectedRecId] = useState('');
   const [emailType, setEmailType] = useState('NOTIF_PANNE');
@@ -52,7 +63,7 @@ function EmailPanel({ open, onClose, reclamations, equipementLabel, societeLabel
       setCorps(result.corps);
       setDestinataire(result.destinataireSuggere || '');
     } catch (err) {
-      setError(err.response?.data?.error?.message || "Échec de la génération de l'email.");
+      setError(apiErrorMessage(err, "Échec de la génération de l'email."));
     } finally {
       setGenerating(false);
     }
@@ -73,7 +84,7 @@ function EmailPanel({ open, onClose, reclamations, equipementLabel, societeLabel
       await reclamationsApi.sendEmail(selectedRecId, { destinataire, objet: subject, corps });
       setSentOk(true);
     } catch (err) {
-      setError(err.response?.data?.error?.message || "Échec de l'envoi de l'email.");
+      setError(apiErrorMessage(err, "Échec de l'envoi de l'email."));
     } finally {
       setSending(false);
     }

@@ -1,17 +1,29 @@
 import { logger } from '../../utils/logger.js';
 
 const OPENROUTER_API_BASE = 'https://openrouter.ai/api/v1';
-const TIMEOUT_MS = 120_000;
+const TIMEOUT_MS = Number(process.env.OPENROUTER_TIMEOUT_MS) || 60_000;
+
+// "openrouter/auto" est le routeur automatique d'OpenRouter : c'est un
+// identifiant de modèle réellement existant, contrairement à des valeurs
+// inventées comme "openrouter/free" qui font expirer chaque requête au bout
+// du délai d'attente au lieu de renvoyer une erreur exploitable.
+const DEFAULT_MODEL = 'openrouter/auto';
 
 function requireOpenRouterConfig() {
-  const apiKey = process.env.OPENROUTER_API_KEY || process.env.GEMINI_API_KEY;
-  const textModel = process.env.OPENROUTER_TEXT_MODEL || 'openrouter/free';
-  const visionModel = process.env.OPENROUTER_VISION_MODEL || 'openrouter/free';
+  // Pas de repli sur GEMINI_API_KEY : une clé Gemini envoyée à OpenRouter est
+  // systématiquement rejetée, et masque la vraie cause (clé manquante).
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  const textModel = process.env.OPENROUTER_TEXT_MODEL || DEFAULT_MODEL;
+  const visionModel = process.env.OPENROUTER_VISION_MODEL || DEFAULT_MODEL;
 
   if (!apiKey) {
     throw new Error('Configuration OpenRouter incomplète : OPENROUTER_API_KEY manquante');
   }
   return { apiKey, textModel, visionModel };
+}
+
+function isConfigured() {
+  return Boolean(process.env.OPENROUTER_API_KEY);
 }
 
 async function callOpenRouterChat(messages, options = {}) {
@@ -113,10 +125,14 @@ async function structureText(prompt, maxAttempts = 2) {
       },
     ];
 
+    // Volontairement hors du try : une erreur de transport (délai dépassé,
+    // clé invalide, modèle inexistant) ne sera pas résolue par une seconde
+    // tentative identique -- elle doit remonter tout de suite pour laisser
+    // la main au fournisseur de secours.
+    const response = await callOpenRouterChat(messages, { temperature: 0.1 });
+
     try {
-      const response = await callOpenRouterChat(messages, { temperature: 0.1 });
-      const repaired = tryRepairJson(response) || JSON.parse(response);
-      return repaired;
+      return tryRepairJson(response) || JSON.parse(response);
     } catch (err) {
       lastError = err;
       logger.warn(`⚠️  [openrouter] Parsing JSON échoué (tentative ${attempt}) : ${err.message}`);
@@ -133,6 +149,8 @@ async function embed(text) {
 
 /** @type {import('../AIProvider.interface.js').AIProvider} */
 export const openrouterProvider = {
+  name: 'openrouter',
+  isConfigured,
   transcribeImage,
   structureText,
   embed,

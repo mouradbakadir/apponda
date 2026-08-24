@@ -18,6 +18,15 @@ function requireGeminiConfig() {
   return { apiKey, visionModel, textModel, embeddingModel };
 }
 
+function isConfigured() {
+  return Boolean(
+    process.env.GEMINI_API_KEY
+    && process.env.GEMINI_VISION_MODEL
+    && process.env.GEMINI_TEXT_MODEL
+    && process.env.GEMINI_EMBEDDING_MODEL
+  );
+}
+
 async function callGemini(model, body, apiKey) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
@@ -131,6 +140,8 @@ async function embed(text) {
 
 /** @type {import('../AIProvider.interface.js').AIProvider} */
 export const geminiProvider = {
+  name: 'gemini',
+  isConfigured,
   transcribeImage,
   structureText,
   embed,
