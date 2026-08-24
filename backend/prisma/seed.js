@@ -167,6 +167,19 @@ async function main() {
   });
 
   await prisma.user.upsert({
+    where: { email: 'a.ourti@onda.ma' },
+    update: {},
+    create: {
+      email: 'a.ourti@onda.ma',
+      passwordHash: passwordAdmin,
+      nom: 'Ourti',
+      prenom: 'A.',
+      role: 'SUPER_ADMIN',
+      // pas d'airportId : vue nationale
+    },
+  });
+
+  await prisma.user.upsert({
     where: { email: 'sup.cmn@onda.ma' },
     update: {},
     create: {
